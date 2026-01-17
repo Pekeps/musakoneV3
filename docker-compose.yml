@@ -1,0 +1,26 @@
+services:
+  mopidy:
+    build:
+      context: ./mopidy
+      dockerfile: Dockerfile
+    container_name: musakone-mopidy
+    ports:
+      - "6600:6600"  # MPD
+      - "6680:6680"  # HTTP/WebSocket
+    volumes:
+      - ./mopidy/mopidy.conf:/config/mopidy.conf:ro
+      - mopidy-local:/var/lib/mopidy/local
+      - mopidy-media:/var/lib/mopidy/media
+      - mopidy-cache:/var/cache/mopidy
+    restart: unless-stopped
+    networks:
+      - musakone
+
+volumes:
+  mopidy-local:
+  mopidy-media:
+  mopidy-cache:
+
+networks:
+  musakone:
+    driver: bridge
