@@ -1,0 +1,16 @@
+node_modules
+dist
+build
+.vite
+.git
+.gitignore
+*.log
+*.md
+.DS_Store
+.env*.local
+coverage
+.nyc_output
+*.tsbuildinfo
+bun.lockb
+CLAUDE.md
+README.md
