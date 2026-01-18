@@ -1,0 +1,17 @@
+name = "musakone_backend"
+version = "1.0.0"
+
+[dependencies]
+gleam_stdlib = ">= 0.68.1 and < 2.0.0"
+gleam_http = ">= 3.7.2 and < 5.0.0"
+gleam_json = ">= 1.0.1 and < 4.0.0"
+gleam_crypto = ">= 1.5.1 and < 2.0.0"
+mist = ">= 1.2.0 and < 6.0.0"
+sqlight = ">= 1.0.3 and < 2.0.0"
+birl = ">= 1.8.0 and < 2.0.0"
+envoy = ">= 1.1.0 and < 2.0.0"
+cors_builder = ">= 1.0.0 and < 3.0.0"
+gwt = ">= 2.1.2 and < 3.0.0"
+
+[dev-dependencies]
+gleeunit = ">= 1.9.0 and < 2.0.0"

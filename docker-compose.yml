@@ -13,9 +13,53 @@ services:
       - mopidy-local:/var/lib/mopidy/local
       - mopidy-media:/var/lib/mopidy/media
       - mopidy-cache:/var/cache/mopidy
+      - ${MUSIC_LIBRARY_PATH:-./data/music}:/media/music:ro
+    environment:
+      - SPOTIFY_ENABLED=${SPOTIFY_ENABLED:-false}
+      - SPOTIFY_USERNAME=${SPOTIFY_USERNAME:-}
+      - SPOTIFY_PASSWORD=${SPOTIFY_PASSWORD:-}
+      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID:-}
+      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET:-}
+      - SOUNDCLOUD_ENABLED=${SOUNDCLOUD_ENABLED:-false}
+      - SOUNDCLOUD_AUTH_TOKEN=${SOUNDCLOUD_AUTH_TOKEN:-}
+      - YOUTUBE_ENABLED=${YOUTUBE_ENABLED:-false}
     restart: unless-stopped
     networks:
       - musakone
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6680/mopidy/rpc"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Gleam backend (WebSocket server + authentication + tracking)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: musakone-backend
+    ports:
+      - "${BACKEND_PORT:-3001}:3001"
+    volumes:
+      - backend-data:/app/data
+    environment:
+      - PORT=3001
+      - DATABASE_PATH=/app/data/musakone.db
+      - JWT_SECRET=${JWT_SECRET:-change-this-secret-in-production}
+      - MOPIDY_URL=ws://mopidy:6680/mopidy/ws
+    depends_on:
+      mopidy:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - musakone
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
 
   # Frontend web application
   frontend:
@@ -24,20 +68,29 @@ services:
       dockerfile: Dockerfile
     container_name: musakone-frontend
     ports:
-      - "3000:3000"
+      - "${FRONTEND_PORT:-3000}:3000"
     environment:
-      - VITE_MOPIDY_WS_URL=ws://mopidy:6680/mopidy/ws
-      - VITE_MOPIDY_HTTP_URL=http://mopidy:6680/mopidy/rpc
+      - VITE_BACKEND_WS_URL=${VITE_BACKEND_WS_URL:-ws://localhost:3001/ws}
+      - VITE_BACKEND_HTTP_URL=${VITE_BACKEND_HTTP_URL:-http://localhost:3001}
+      - VITE_AUTH_ENABLED=${VITE_AUTH_ENABLED:-true}
     depends_on:
-      - mopidy
+      backend:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - musakone
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
 
 volumes:
   mopidy-local:
   mopidy-media:
   mopidy-cache:
+  backend-data:
 
 networks:
   musakone:

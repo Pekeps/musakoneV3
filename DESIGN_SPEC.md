@@ -1557,23 +1557,23 @@ services:
 ## 14. Implementation Phases
 
 ### Phase 0: Infrastructure Setup (Day 1-2)
-- [ ] Docker Compose configuration (3 services: backend, frontend, mopidy)
-- [ ] Mopidy container setup and configuration
-- [ ] Network and volume configuration
-- [ ] Environment variables setup
-- [ ] Shared protocol documentation (MOPIDY_PROTOCOL.md)
-- [ ] Documentation for setup
+- [x] Docker Compose configuration (3 services: backend, frontend, mopidy)
+- [x] Mopidy container setup and configuration
+- [x] Network and volume configuration
+- [x] Environment variables setup
+- [x] Shared protocol documentation (mopidy/MOPIDY_API.md)
+- [x] Documentation for setup
 
 ### Phase 0.5: Backend Foundation (Day 3-4)
-- [ ] Gleam project setup
-- [ ] Backend Dockerfile
-- [ ] SQLite database schema for user tracking
-- [ ] JWT authentication implementation
-- [ ] WebSocket server (Mist)
-- [ ] Mopidy WebSocket client connection
-- [ ] Basic message routing (client → backend → mopidy)
-- [ ] User action logging
-- [ ] Health check endpoint
+- [x] Gleam project setup
+- [x] Backend Dockerfile
+- [x] SQLite database schema for user tracking
+- [x] JWT authentication implementation
+- [x] WebSocket server (Mist)
+- [x] Mopidy WebSocket client connection
+- [x] Basic message routing (client → backend → mopidy)
+- [x] User action logging
+- [x] Health check endpoint
 
 ### Phase 1: Frontend Foundation (Week 1)
 - [ ] Frontend project setup with Bun

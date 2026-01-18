@@ -114,3 +114,16 @@ dist
 
 # mise
 mise.toml
+
+# MusakoneV3 specific
+# Persistent data directories
+data/
+mopidy-data/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Docker volumes
+docker-compose.override.yml
