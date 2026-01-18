@@ -133,19 +133,30 @@ interface UserAction {
 
 ## 2. Technology Stack
 
-### 2.1 Runtime & Build Tools
+### 2.1 Backend
+- **Language**: Gleam (functional, type-safe language on the BEAM VM)
+- **Runtime**: Erlang/OTP (BEAM VM)
+- **Web Framework**: Mist (minimal HTTP/WebSocket server)
+- **Database**: SQLite (embedded, for user tracking and analytics)
+- **Architecture**: WebSocket proxy between clients and Mopidy
+  - Handles authentication (JWT)
+  - Tracks all user actions
+  - Manages WebSocket connection pool
+  - Single WebSocket connection to Mopidy
+
+### 2.2 Frontend Runtime & Build Tools
 - **Runtime**: Bun (latest) - fast JavaScript runtime
 - **Package Manager**: Bun
 - **Build Tool**: Bun's built-in bundler
 - **Dev Server**: Bun's built-in server
 
-### 2.2 Frontend Framework
+### 2.3 Frontend Framework
 - **Framework**: **Preact** (lightweight React alternative, 3KB)
   - Reasoning: Smallest production-ready framework
   - Full React compatibility via preact/compat
   - Excellent performance
 
-### 2.3 State Management
+### 2.4 State Management
 - **Global State**: Nanostores (~300 bytes)
   - Atomic state management
   - No boilerplate
@@ -155,13 +166,13 @@ interface UserAction {
   - Real-time updates
   - Optimistic updates
 
-### 2.4 Routing
+### 2.5 Routing
 - **Router**: Wouter (~1.5KB)
   - Minimalist routing
   - Hook-based API
   - Perfect for single-page apps
 
-### 2.5 HTTP Client
+### 2.6 HTTP Client
 - **Client**: Native Fetch API (0KB)
   - Built into all modern browsers
   - Wrap in thin utility layer if needed (~100 bytes)
@@ -174,7 +185,7 @@ interface UserAction {
   - For real-time Mopidy updates
   - Automatic reconnection logic
 
-### 2.7 Progressive Web App (PWA)
+### 2.8 Progressive Web App (PWA)
 - **Manifest**: Web app manifest for installability
 - **Service Worker**: Cache static assets for offline UI
 - **Icons**: Multiple sizes for different devices (192x192, 512x512)
@@ -182,21 +193,21 @@ interface UserAction {
 - **Standalone Mode**: Full-screen app experience
 - **Add to Home Screen**: Prompt for installation
 
-### 2.8 Styling
+### 2.9 Styling
 - **Base**: CSS Modules + Modern CSS
 - **Variables**: CSS Custom Properties
 - **Terminal Theme**: Custom monospace design
 - **Icons**: Lucide (tree-shakeable, ~1KB per icon)
 - **No CSS Framework**: Keep it minimal
 
-### 2.8 Build Optimizations
+### 2.10 Build Optimizations
 - Code splitting (route-based)
 - Tree shaking
 - Minification
 - Asset optimization
 - Preact aliases for React
 
-### 2.9 Development Tools
+### 2.11 Development Tools
 - **TypeScript**: Full type safety
 - **Biome**: Alternative faster linter/formatter
 
@@ -208,6 +219,30 @@ interface UserAction {
 
 ```
 musakoneV3/
+├── backend/                 # Gleam backend service
+│   ├── src/
+│   │   ├── app.gleam            # Main application entry
+│   │   ├── router.gleam         # HTTP/WebSocket routing
+│   │   ├── auth/
+│   │   │   ├── jwt.gleam        # JWT token handling
+│   │   │   ├── session.gleam    # Session management
+│   │   │   └── middleware.gleam # Auth middleware
+│   │   ├── proxy/
+│   │   │   ├── mopidy_client.gleam    # Single WS to Mopidy
+│   │   │   ├── client_pool.gleam      # Manage client WS connections
+│   │   │   └── message_router.gleam   # Route messages between clients and Mopidy
+│   │   ├── tracking/
+│   │   │   ├── logger.gleam     # Log user actions to database
+│   │   │   └── analytics.gleam  # Analytics queries
+│   │   ├── db/
+│   │   │   ├── sqlite.gleam     # SQLite interface
+│   │   │   └── migrations.gleam # Database migrations
+│   │   └── types/
+│   │       ├── mopidy.gleam     # Mopidy protocol types
+│   │       └── user.gleam       # User types
+│   ├── test/                # Tests
+│   ├── gleam.toml          # Gleam project config
+│   ├── Dockerfile          # Backend container
 ├── frontend/                # Frontend application
 │   ├── src/
 │   │   ├── main.tsx              # Entry point
@@ -276,8 +311,11 @@ musakoneV3/
 ├── mopidy/                # Mopidy backend configuration
 │   ├── mopidy.conf       # Mopidy configuration
 │   ├── Dockerfile        # Mopidy container (optional custom)
-│   └── extensions/       # Custom Mopidy extensions
+│   ├── extensions/       # Custom Mopidy extensions
+|   └── MOPIDY_API.md     # Mopidy API docs
 ├── data/                 # Persistent data (gitignored)
+│   ├── backend/         # Backend data
+│   │   └── analytics.db # SQLite database
 │   ├── mopidy/          # Mopidy data
 │   │   ├── playlists/
 │   │   ├── cache/
@@ -320,14 +358,66 @@ App
 
 ---
 
-## 4. Mopidy Integration
+## 4. Architecture: WebSocket Proxy Pattern
 
-### 4.1 Mopidy HTTP API
-- **Base URL**: `http://localhost:6680/mopidy` (configurable)
+### 4.1 Communication Flow
+
+```
+┌─────────────┐         ┌─────────────┐         ┌─────────────┐
+│  Client A   │──WS────▶│             │         │             │
+│  (Mobile)   │◀───WS───│             │         │             │
+└─────────────┘         │             │         │             │
+                        │   Gleam     │──WS────▶│   Mopidy    │
+┌─────────────┐         │   Backend   │◀───WS───│   Server    │
+│  Client B   │──WS────▶│             │         │             │
+│  (Mobile)   │◀───WS───│   - Auth    │         │   - Music   │
+└─────────────┘         │   - Track   │         │   - Library │
+                        │   - Proxy   │         │   - Playback│
+┌─────────────┐         │             │         │             │
+│  Client C   │──WS────▶│             │         │             │
+│  (Mobile)   │◀───WS───│             │         │             │
+└─────────────┘         └─────────────┘         └─────────────┘
+                              ↓
+                        ┌─────────────┐
+                        │   SQLite    │
+                        │  (Analytics)│
+                        └─────────────┘
+```
+
+### 4.2 Backend Responsibilities
+
+1. **Authentication**
+   - Validate JWT tokens on WebSocket connection
+   - Manage user sessions
+   - Reject unauthorized connections
+
+2. **WebSocket Proxy**
+   - Maintain pool of client WebSocket connections
+   - Single WebSocket connection to Mopidy
+   - Route messages between clients and Mopidy
+   - Broadcast Mopidy events to all connected clients
+
+3. **User Action Tracking**
+   - Log every command from clients
+   - Store: user_id, action_type, resource_uri, metadata, timestamp
+   - Provide analytics API endpoints
+
+4. **Message Flow**
+   ```
+   Client → Backend: { method: "core.playback.play", params: {} }
+   Backend logs action: {user_id: "alice", action: "play", timestamp: ...}
+   Backend → Mopidy: Forward same message
+   Mopidy → Backend: { event: "track_playback_started", ... }
+   Backend → All Clients: Broadcast event
+   ```
+
+### 4.3 Mopidy HTTP API (Backend Access Only)
+- **Base URL**: `http://mopidy:6680/mopidy` (internal Docker network)
 - **Protocol**: HTTP JSON-RPC 2.0
-- **Authentication**: Basic Auth or custom headers
+- **Access**: Only backend can communicate with Mopidy HTTP API
+- **Client Access**: Clients communicate exclusively through backend WebSocket
 
-### 4.2 Core Mopidy Methods
+### 4.4 Core Mopidy Methods
 
 ```typescript
 // Playback
@@ -365,7 +455,7 @@ core.mixer.getVolume()
 core.mixer.setVolume(volume)
 ```
 
-### 4.3 WebSocket Events
+### 4.5 WebSocket Events (Mopidy → Backend → Clients)
 
 ```typescript
 // Subscribe to events
@@ -1087,12 +1177,15 @@ MOPIDY_WS_HOSTNAME=0.0.0.0
 # Music Library Path (host machine)
 MUSIC_LIBRARY_PATH=/path/to/your/music
 
+# Backend Configuration
+BACKEND_PORT=3001
+JWT_SECRET=your-secret-key-change-in-production
+DATABASE_PATH=/app/data/analytics.db
+
 # Frontend Configuration
 FRONTEND_PORT=3000
-VITE_MOPIDY_HTTP_URL=http://localhost:6680/mopidy
-VITE_MOPIDY_WS_URL=ws://localhost:6680/mopidy/ws
-VITE_AUTH_ENABLED=true
-VITE_TRACKING_ENABLED=true
+VITE_BACKEND_URL=http://localhost:3001
+VITE_BACKEND_WS=ws://localhost:3001/ws
 
 # Optional: Spotify (if using Mopidy-Spotify)
 SPOTIFY_USERNAME=
@@ -1214,7 +1307,39 @@ volumes:
     driver: local
 ```
 
-### 13.3 Frontend Dockerfile
+### 13.3 Backend Dockerfile
+
+```dockerfile
+# backend/Dockerfile
+FROM ghcr.io/gleam-lang/gleam:v1.0.0-erlang-alpine
+
+WORKDIR /app
+
+# Install SQLite
+RUN apk add --no-cache sqlite-libs sqlite-dev
+
+# Copy Gleam project files
+COPY gleam.toml manifest.toml ./
+COPY src ./src
+
+# Build the application
+RUN gleam build
+
+# Create data directory
+RUN mkdir -p /app/data
+
+# Expose WebSocket port
+EXPOSE 3001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1
+
+# Run the application
+CMD ["gleam", "run"]
+```
+
+### 13.4 Frontend Dockerfile
 
 ```dockerfile
 # frontend/Dockerfile
@@ -1264,7 +1389,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 CMD ["bun", "run", "server.js"]
 ```
 
-### 13.4 Mopidy Configuration
+### 13.5 Mopidy Configuration
 
 ```ini
 # mopidy/mopidy.conf
@@ -1432,22 +1557,34 @@ services:
 ## 14. Implementation Phases
 
 ### Phase 0: Infrastructure Setup (Day 1-2)
-- [ ] Docker Compose configuration
+- [ ] Docker Compose configuration (3 services: backend, frontend, mopidy)
 - [ ] Mopidy container setup and configuration
 - [ ] Network and volume configuration
 - [ ] Environment variables setup
+- [ ] Shared protocol documentation (MOPIDY_PROTOCOL.md)
 - [ ] Documentation for setup
 
-### Phase 1: Foundation (Week 1)
+### Phase 0.5: Backend Foundation (Day 3-4)
+- [ ] Gleam project setup
+- [ ] Backend Dockerfile
+- [ ] SQLite database schema for user tracking
+- [ ] JWT authentication implementation
+- [ ] WebSocket server (Mist)
+- [ ] Mopidy WebSocket client connection
+- [ ] Basic message routing (client → backend → mopidy)
+- [ ] User action logging
+- [ ] Health check endpoint
+
+### Phase 1: Frontend Foundation (Week 1)
 - [ ] Frontend project setup with Bun
 - [ ] Frontend Dockerfile with static server
 - [ ] Mobile-first responsive layout system
 - [ ] Bottom navigation component
 - [ ] Terminal theme CSS (mobile-optimized)
 - [ ] Touch gesture handlers
-- [ ] Mopidy HTTP client
+- [ ] Backend WebSocket client (connects to backend, not Mopidy directly)
 - [ ] Mobile player controls (large touch targets)
-- [ ] Verify container communication
+- [ ] Verify full stack communication (client → backend → mopidy)
 - [ ] PWA manifest and service worker setup
 
 ### Phase 2: Core Features (Week 2)
