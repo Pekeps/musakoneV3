@@ -1,52 +1,26 @@
-import auth/jwt.{type User, User}
-import birl
-import gleam/option.{type Option, None, Some}
+import db/queries
+import gleam/bit_array
+import gleam/crypto
+import gleam/float
+import gleam/option
 import gleam/result
+import gleam/time/timestamp
 import sqlight
 
-/// Authenticate user by username and password
+// Authenticate user by username and password
 pub fn authenticate(
-  db: sqlight.Connection,
+  db_connection: sqlight.Connection,
   username: String,
   password: String,
-) -> Result(User, String) {
-  let password_hash = jwt.hash_password(password)
-
-  let sql =
-    "
-    SELECT id, username FROM users
-    WHERE username = ? AND password_hash = ?
-    LIMIT 1
-    "
-
-  sqlight.query(
-    sql,
-    db,
-    [sqlight.text(username), sqlight.text(password_hash)],
-    fn(row) {
-      case row {
-        [sqlight.Integer(id), sqlight.Text(username)] ->
-          Ok(User(id: id, username: username))
-        _ -> Error(sqlight.UnexpectedResultType)
-      }
-    },
-  )
-  |> result.then(fn(users) {
-    case users {
-      [user] -> {
-        // Update last login
-        let _ =
-          sqlight.exec(
-            "UPDATE users SET last_login = strftime('%s', 'now') WHERE id = "
-              <> int.to_string(user.id),
-            db,
-          )
-        Ok(user)
-      }
-      _ -> Error("Invalid credentials")
-    }
-  })
-  |> result.map_error(fn(_) { "Invalid credentials" })
+) -> Result(queries.User, String) {
+  use pw_hash <- result.try(hash_password(password))
+  use user <- result.try(get_user_by_credentials(
+    db_connection,
+    username,
+    pw_hash,
+  ))
+  let _ = update_last_login(db_connection, user.id)
+  Ok(user)
 }
 
 /// Create a new user
@@ -54,59 +28,55 @@ pub fn create_user(
   db: sqlight.Connection,
   username: String,
   password: String,
-) -> Result(User, String) {
-  let password_hash = jwt.hash_password(password)
-  let now = birl.now() |> birl.to_unix() |> int.to_string()
+) -> Result(queries.User, String) {
+  let pw_hash =
+    hash_password(password)
+    |> result.map_error(fn(_) { "Failed to hash password" })
 
-  let sql =
-    "
-    INSERT INTO users (username, password_hash, created_at)
-    VALUES (?, ?, ?)
-    "
-
-  sqlight.exec(sql, db)
-  |> result.then(fn(_) {
-    sqlight.query(
-      "SELECT id, username FROM users WHERE username = ? LIMIT 1",
-      db,
-      [sqlight.text(username)],
-      fn(row) {
-        case row {
-          [sqlight.Integer(id), sqlight.Text(username)] ->
-            Ok(User(id: id, username: username))
-          _ -> Error(sqlight.UnexpectedResultType)
-        }
-      },
-    )
-  })
-  |> result.then(fn(users) {
-    case users {
-      [user] -> Ok(user)
-      _ -> Error("Failed to create user")
-    }
-  })
-  |> result.map_error(fn(_) { "Failed to create user" })
+  case pw_hash {
+    Ok(hash) ->
+      queries.create_user(db, username, hash, epoch_now())
+      |> result.map_error(fn(_) { "Failed to create user" })
+      |> result.try(parse_first_row)
+    Error(e) -> Error(e)
+  }
 }
 
-/// Get user by ID
-pub fn get_user_by_id(
-  db: sqlight.Connection,
-  user_id: Int,
-) -> Result(User, String) {
-  let sql = "SELECT id, username FROM users WHERE id = ? LIMIT 1"
+fn hash_password(password: String) -> Result(String, String) {
+  crypto.hash(crypto.Sha256, <<password:utf8>>)
+  |> bit_array.to_string()
+  |> result.map_error(fn(_) { "Failed to hash password" })
+}
 
-  sqlight.query(sql, db, [sqlight.int(user_id)], fn(row) {
-    case row {
-      [sqlight.Integer(id), sqlight.Text(username)] ->
-        Ok(User(id: id, username: username))
-      _ -> Error(sqlight.UnexpectedResultType)
-    }
-  })
-  |> result.then(fn(users) {
-    case users {
-      [user] -> Ok(user)
-      _ -> Error("User not found")
-    }
-  })
-  |> result.map_error(fn(_) { "User not found" })
+fn get_user_by_credentials(
+  db: sqlight.Connection,
+  username: String,
+  hash: String,
+) -> Result(queries.User, String) {
+  queries.get_user_by_username_and_password(db, username, hash)
+  |> result.map_error(fn(_) { "Database query failed" })
+  |> result.try(parse_first_row)
+}
+
+fn update_last_login(db: sqlight.Connection, user_id: Int) {
+  let now =
+    timestamp.system_time()
+    |> timestamp.to_unix_seconds()
+    |> float.round()
+
+  queries.update_last_login(db, user_id, option.Some(now))
+  |> result.map_error(fn(_) { "Failed to update last login" })
+}
+
+fn parse_first_row(rows: List(a)) -> Result(a, String) {
+  case rows {
+    [first_row, ..] -> Ok(first_row)
+    [] -> Error("No results returned")
+  }
+}
+
+fn epoch_now() -> Int {
+  timestamp.system_time()
+  |> timestamp.to_unix_seconds()
+  |> float.round()
 }

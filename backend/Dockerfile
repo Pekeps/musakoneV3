@@ -1,7 +1,7 @@
 # Multi-stage build for Gleam backend
 
 # Stage 1: Build
-FROM ghcr.io/gleam-lang/gleam:v1.6.2-erlang-alpine AS builder
+FROM ghcr.io/gleam-lang/gleam:v1.14.0-erlang-alpine AS builder
 
 WORKDIR /build
 
@@ -23,7 +23,7 @@ RUN gleam deps download
 RUN gleam build
 
 # Stage 2: Runtime
-FROM ghcr.io/gleam-lang/gleam:v1.6.2-erlang-alpine
+FROM ghcr.io/gleam-lang/gleam:v1.14.0-erlang-alpine
 
 WORKDIR /app
 
@@ -49,10 +49,6 @@ ENV PORT=3001
 ENV DATABASE_PATH=/app/data/musakone.db
 ENV JWT_SECRET=change-this-secret-in-production
 ENV MOPIDY_URL=ws://mopidy:6680/mopidy/ws
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1
 
 # Run the application
 CMD ["gleam", "run"]

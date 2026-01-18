@@ -1,17 +1,38 @@
 import db/connection
 import envoy
+import gleam/bytes_tree
 import gleam/erlang/process
-import gleam/io
+import gleam/http/request.{type Request}
+import gleam/http/response.{type Response}
+import gleam/int
 import gleam/result
+import gleam/string
+import logging
 import mist
-import websocket/handler.{AppState}
-import websocket/routes
+import sqlight
+
+type AppState {
+  AppState(db: sqlight.Connection, jwt_secret: String, mopidy_url: String)
+}
 
 pub fn main() {
+  logging.configure()
+  logging.set_level(logging.Debug)
+
+  let not_found =
+    response.new(404)
+    |> response.set_body(mist.Bytes(bytes_tree.new()))
+
   // Load environment variables
-  let port =
+  use port <- result.try(
     envoy.get("PORT")
     |> result.unwrap("3001")
+    |> int.parse
+    |> result.map_error(fn(_) {
+      logging.log(logging.Error, "PORT environment variable invalid")
+      Nil
+    }),
+  )
 
   let jwt_secret =
     envoy.get("JWT_SECRET")
@@ -19,47 +40,56 @@ pub fn main() {
 
   let mopidy_url =
     envoy.get("MOPIDY_URL")
-    |> result.unwrap("ws://mopidy:6680/mopidy/ws")
+    |> result.unwrap("http://localhost:6680")
 
-  let db_path =
+  use db_path <- result.try(
     envoy.get("DATABASE_PATH")
-    |> result.unwrap("/app/data/musakone.db")
+    |> result.map_error(fn(_) {
+      logging.log(logging.Error, "DATABASE_PATH environment variable not set")
+      Nil
+    }),
+  )
 
-  io.println("Starting MusakoneV3 Backend...")
-  io.println("Port: " <> port)
-  io.println("Database: " <> db_path)
-  io.println("Mopidy URL: " <> mopidy_url)
+  logging.log(logging.Info, "Starting MusakoneV3 Backend...")
+  logging.log(logging.Info, "Port: " <> int.to_string(port))
+  logging.log(logging.Info, "Database: " <> db_path)
+  logging.log(logging.Info, "Mopidy URL: " <> mopidy_url)
 
   // Open database connection
-  case connection.open(db_path) {
+  Ok(case connection.initialize(db_path) {
     Ok(db) -> {
-      io.println("✓ Database connected and initialized")
+      logging.log(logging.Info, "✓ Database connected and initialized")
 
       // Create app state
-      let state =
+      let _state =
         AppState(db: db, jwt_secret: jwt_secret, mopidy_url: mopidy_url)
 
       // Start Mist server
       let assert Ok(_) =
-        mist.new(fn(req) { routes.handle_request(req, state) })
-        |> mist.port(
-          port
-          |> int.parse
-          |> result.unwrap(3001),
-        )
-        |> mist.start_http
+        fn(req: Request(mist.Connection)) -> Response(mist.ResponseData) {
+          logging.log(
+            logging.Info,
+            "Got a request from: "
+              <> string.inspect(mist.get_client_info(req.body)),
+          )
+          case request.path_segments(req) {
+            [] ->
+              response.new(200)
+              |> response.prepend_header("my-value", "abc")
+              |> response.prepend_header("my-value", "123")
+              |> response.set_body(mist.Bytes(bytes_tree.from_string("index")))
+            _ -> not_found
+          }
+        }
+        |> mist.new
+        |> mist.bind("localhost")
+        |> mist.port(port)
+        |> mist.start
 
-      io.println("✓ Server started on port " <> port)
-      io.println("✓ Health check: http://localhost:" <> port <> "/health")
-      io.println("✓ WebSocket: ws://localhost:" <> port <> "/ws")
-
-      // Keep the process alive
       process.sleep_forever()
     }
-    Error(err) -> {
-      io.println("✗ Failed to connect to database")
-      io.debug(err)
-      process.sleep(1000)
+    Error(e) -> {
+      logging.log(logging.Error, "✗ Failed to connect to database: " <> e)
     }
-  }
+  })
 }
