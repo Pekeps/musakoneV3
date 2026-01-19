@@ -36,19 +36,14 @@ RUN apk add --no-cache \
 COPY --from=builder /build/build /app/build
 COPY --from=builder /build/gleam.toml /app/
 COPY --from=builder /build/manifest.toml /app/
+COPY --from=builder /build/src /app/src
 
 # Create data directory for SQLite database
 RUN mkdir -p /app/data && \
     chmod 777 /app/data
 
-# Expose port
+# Expose port (container-internal, hardcoded)
 EXPOSE 3001
-
-# Environment variables (can be overridden in docker-compose)
-ENV PORT=3001
-ENV DATABASE_PATH=/app/data/musakone.db
-ENV JWT_SECRET=change-this-secret-in-production
-ENV MOPIDY_URL=ws://mopidy:6680/mopidy/ws
 
 # Run the application
 CMD ["gleam", "run"]

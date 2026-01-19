@@ -1,5 +1,4 @@
 services:
-  # Mopidy music server
   mopidy:
     build:
       context: ./mopidy
@@ -14,26 +13,18 @@ services:
       - mopidy-media:/var/lib/mopidy/media
       - mopidy-cache:/var/cache/mopidy
       - ${MUSIC_LIBRARY_PATH:-./data/music}:/media/music:ro
-    environment:
-      - SPOTIFY_ENABLED=${SPOTIFY_ENABLED:-false}
-      - SPOTIFY_USERNAME=${SPOTIFY_USERNAME:-}
-      - SPOTIFY_PASSWORD=${SPOTIFY_PASSWORD:-}
-      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID:-}
-      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET:-}
-      - SOUNDCLOUD_ENABLED=${SOUNDCLOUD_ENABLED:-false}
-      - SOUNDCLOUD_AUTH_TOKEN=${SOUNDCLOUD_AUTH_TOKEN:-}
-      - YOUTUBE_ENABLED=${YOUTUBE_ENABLED:-false}
+    env_file:
+      - .env
     restart: unless-stopped
     networks:
       - musakone
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6680/mopidy"]
-      interval: 30s
+      test: ["CMD", "curl", "-f", "http://localhost:6680/"]
+      interval: 10s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 1s
 
-  # Gleam backend (WebSocket server + authentication + tracking)
   backend:
     build:
       context: ./backend
@@ -44,8 +35,6 @@ services:
     volumes:
       - backend-data:/app/data
     environment:
-      - PORT=3001
-      - DATABASE_PATH=/app/data/musakone.db
       - JWT_SECRET=${JWT_SECRET:-change-this-secret-in-production}
       - MOPIDY_URL=ws://mopidy:6680/mopidy/ws
     depends_on:
@@ -63,10 +52,8 @@ services:
     container_name: musakone-frontend
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
-    environment:
-      - VITE_BACKEND_WS_URL=${VITE_BACKEND_WS_URL:-ws://localhost:3001/ws}
-      - VITE_BACKEND_HTTP_URL=${VITE_BACKEND_HTTP_URL:-http://localhost:3001}
-      - VITE_AUTH_ENABLED=${VITE_AUTH_ENABLED:-true}
+    env_file:
+      - .env
     depends_on:
       - backend
     restart: unless-stopped

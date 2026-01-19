@@ -23,17 +23,10 @@ pub fn main() {
     response.new(404)
     |> response.set_body(mist.Bytes(bytes_tree.new()))
 
-  // Load environment variables
-  use port <- result.try(
-    envoy.get("PORT")
-    |> result.unwrap("3001")
-    |> int.parse
-    |> result.map_error(fn(_) {
-      logging.log(logging.Error, "PORT environment variable invalid")
-      Nil
-    }),
-  )
+  let port = 3001
+  let db_path = "/app/data/musakone.db"
 
+  // External configuration (from environment)
   let jwt_secret =
     envoy.get("JWT_SECRET")
     |> result.unwrap("change-this-secret-in-production")
@@ -42,21 +35,13 @@ pub fn main() {
     envoy.get("MOPIDY_URL")
     |> result.unwrap("http://localhost:6680")
 
-  use db_path <- result.try(
-    envoy.get("DATABASE_PATH")
-    |> result.map_error(fn(_) {
-      logging.log(logging.Error, "DATABASE_PATH environment variable not set")
-      Nil
-    }),
-  )
-
   logging.log(logging.Info, "Starting MusakoneV3 Backend...")
   logging.log(logging.Info, "Port: " <> int.to_string(port))
   logging.log(logging.Info, "Database: " <> db_path)
   logging.log(logging.Info, "Mopidy URL: " <> mopidy_url)
 
   // Open database connection
-  Ok(case connection.initialize(db_path) {
+  case connection.initialize(db_path) {
     Ok(db) -> {
       logging.log(logging.Info, "✓ Database connected and initialized")
 
@@ -90,6 +75,7 @@ pub fn main() {
     }
     Error(e) -> {
       logging.log(logging.Error, "✗ Failed to connect to database: " <> e)
+      Nil
     }
-  })
+  }
 }
