@@ -4,6 +4,7 @@ import gleam/crypto
 import gleam/float
 import gleam/option
 import gleam/result
+import gleam/string
 import gleam/time/timestamp
 import sqlight
 
@@ -13,7 +14,7 @@ pub fn authenticate(
   username: String,
   password: String,
 ) -> Result(queries.User, String) {
-  use pw_hash <- result.try(hash_password(password))
+  let pw_hash = hash_password(password)
   use user <- result.try(get_user_by_credentials(
     db_connection,
     username,
@@ -29,23 +30,16 @@ pub fn create_user(
   username: String,
   password: String,
 ) -> Result(queries.User, String) {
-  let pw_hash =
-    hash_password(password)
-    |> result.map_error(fn(_) { "Failed to hash password" })
-
-  case pw_hash {
-    Ok(hash) ->
-      queries.create_user(db, username, hash, epoch_now())
-      |> result.map_error(fn(_) { "Failed to create user" })
-      |> result.try(parse_first_row)
-    Error(e) -> Error(e)
-  }
+  let pw_hash = hash_password(password)
+  queries.create_user(db, username, pw_hash, epoch_now())
+  |> result.map_error(fn(_) { "Failed to create user" })
+  |> result.try(parse_first_row)
 }
 
-fn hash_password(password: String) -> Result(String, String) {
+fn hash_password(password: String) -> String {
   crypto.hash(crypto.Sha256, <<password:utf8>>)
-  |> bit_array.to_string()
-  |> result.map_error(fn(_) { "Failed to hash password" })
+  |> bit_array.base16_encode()
+  |> string.lowercase()
 }
 
 fn get_user_by_credentials(

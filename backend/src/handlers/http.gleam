@@ -93,22 +93,37 @@ pub fn login(state: AppState, body: String) -> Response(ResponseData) {
 
 /// Register endpoint
 pub fn register(state: AppState, body: String) -> Response(ResponseData) {
+  let _ = logging.log(logging.Debug, "Register request received: " <> body)
   case parse_login_request(body) {
     Ok(req) -> {
+      let _ =
+        logging.log(logging.Debug, "Parsed register request" <> req.username)
       case service.create_user(state.db, req.username, req.password) {
         Ok(user) -> {
-          json.object([
-            #("id", json.int(user.id)),
-            #("username", json.string(user.username)),
-            #("created_at", json.int(user.created_at)),
-          ])
-          |> json.to_string
-          |> respond_json(201)
+          let response_json =
+            json.object([
+              #("id", json.int(user.id)),
+              #("username", json.string(user.username)),
+              #("created_at", json.int(user.created_at)),
+            ])
+            |> json.to_string
+          let _ =
+            logging.log(
+              logging.Info,
+              "Registering successful: " <> response_json,
+            )
+          respond_json(response_json, 201)
         }
-        Error(_) -> error_response("Username already exists", 409)
+        Error(e) -> {
+          let _ = logging.log(logging.Error, "Error creating user: " <> e)
+          error_response("Username already exists", 409)
+        }
       }
     }
-    Error(e) -> error_response("Invalid request: " <> e, 400)
+    Error(e) -> {
+      let _ = logging.log(logging.Error, "Error parsing payload: " <> e)
+      error_response("Invalid request: " <> e, 400)
+    }
   }
 }
 

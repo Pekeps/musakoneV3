@@ -10,6 +10,7 @@
   --accent-secondary: #00ccff;
   --border-primary: #303030;
   --border-secondary: #202020;
+  --error: #ff4444;
 
   /* Typography */
   --font-mono: "JetBrains Mono", "Fira Code", "Courier New", monospace;
@@ -22,6 +23,17 @@
   --spacing-md: 1rem;
   --spacing-lg: 1.5rem;
   --spacing-xl: 2rem;
+  
+  /* Touch Targets - Mobile Priority */
+  --touch-target-min: 56px;
+  --touch-target-desktop: 44px;
+  
+  /* Layout */
+  --bottom-nav-height: 64px;
+  --mini-player-height: 72px;
+  
+  /* Transitions */
+  --transition-fast: 150ms ease;
 }
 
 * {

@@ -15,19 +15,22 @@ COPY . .
 # Build the application
 RUN bun run build
 
-# Production stage
+# Production stage - Use Bun native server
 FROM oven/bun:1.3.6-alpine
 
 WORKDIR /app
 
-# Install serve or use bun's built-in server
-RUN bun add -g serve
+# Copy all source files (including TS, CSS, assets)
+COPY . .
 
-# Copy built files from builder
-COPY --from=builder /app/dist ./dist
+# Install dependencies (lockfile respected)
+RUN bun install --frozen-lockfile
 
-# Expose port
+# Build frontend (outputs to /dist)
+RUN bun run build
+
+# Expose port for Bun static server
 EXPOSE 3000
 
-# Serve the built files
-CMD ["serve", "-s", "dist", "-l", "3000"]
+# Start Bun static server (TypeScript entrypoint)
+CMD ["bun", "run", "server.ts"]

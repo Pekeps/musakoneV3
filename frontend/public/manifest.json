@@ -1,0 +1,42 @@
+{
+  "name": "MusakoneV3",
+  "short_name": "Musakone",
+  "description": "Terminal-style music player for Mopidy",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#00ff88",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["music", "entertainment"],
+  "shortcuts": [
+    {
+      "name": "Queue",
+      "url": "/",
+      "description": "View current queue"
+    },
+    {
+      "name": "Library",
+      "url": "/library",
+      "description": "Browse music library"
+    },
+    {
+      "name": "Search",
+      "url": "/search",
+      "description": "Search for music"
+    }
+  ]
+}

@@ -1,0 +1,94 @@
+.miniPlayer {
+  position: fixed;
+  bottom: var(--bottom-nav-height);
+  left: 0;
+  right: 0;
+  height: var(--mini-player-height);
+  background: var(--bg-tertiary);
+  border-top: 1px solid var(--border-primary);
+  display: flex;
+  align-items: center;
+  padding: var(--spacing-sm) var(--spacing-md);
+  gap: var(--spacing-md);
+  z-index: 99;
+}
+
+.trackInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.trackName {
+  font-size: var(--font-size-base);
+  color: var(--fg-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trackArtist {
+  font-size: var(--font-size-sm);
+  color: var(--fg-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.noTrack {
+  color: var(--fg-tertiary);
+  font-style: italic;
+}
+
+.controls {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.controlButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-target-min);
+  height: var(--touch-target-min);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  color: var(--fg-primary);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.controlButton:active {
+  transform: scale(0.9);
+  background: var(--bg-primary);
+}
+
+.controlButton:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.controlButton svg {
+  width: 24px;
+  height: 24px;
+}
+
+.playButton {
+  background: var(--accent-primary);
+  color: var(--bg-primary);
+}
+
+.playButton:active {
+  background: var(--accent-secondary);
+}
+
+@media (min-width: 768px) {
+  .miniPlayer {
+    position: static;
+    border-top: none;
+    border-bottom: 1px solid var(--border-primary);
+  }
+}

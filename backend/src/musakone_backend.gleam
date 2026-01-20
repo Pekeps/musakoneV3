@@ -19,16 +19,21 @@ pub fn main() {
   logging.set_level(logging.Debug)
 
   let port = 3001
-  let db_path = "/app/data/musakone.db"
 
   // External configuration (from environment)
+  // For local development, use: DB_PATH=./data/musakone.db
+  let db_path =
+    envoy.get("DB_PATH")
+    |> result.unwrap("/app/data/musakone.db")
+
   let jwt_secret =
     envoy.get("JWT_SECRET")
     |> result.unwrap("change-this-secret-in-production")
 
+  // For local development, use: MOPIDY_URL=ws://localhost:6680/mopidy/ws
   let mopidy_url =
     envoy.get("MOPIDY_URL")
-    |> result.unwrap("http://mopidy:6680")
+    |> result.unwrap("ws://mopidy:6680/mopidy/ws")
 
   logging.log(logging.Info, "")
   logging.log(logging.Info, "╔══════════════════════════════════════╗")
@@ -68,7 +73,7 @@ pub fn main() {
       logging.log(logging.Info, "✓ Server started successfully!")
       logging.log(logging.Info, "")
       logging.log(logging.Info, "Available endpoints:")
-      logging.log(logging.Info, "  • GET  /health")
+      logging.log(logging.Info, "  • GET  /api/health")
       logging.log(logging.Info, "  • POST /api/auth/login")
       logging.log(logging.Info, "  • POST /api/auth/register")
       logging.log(logging.Info, "  • GET  /api/auth/me")
@@ -127,7 +132,7 @@ fn handle_request(
     }
 
     // Health check
-    http.Get, ["health"] -> http_handlers.health_check() |> with_cors
+    http.Get, ["api", "health"] -> http_handlers.health_check() |> with_cors
 
     // Auth endpoints
     http.Post, ["api", "auth", "login"] -> {

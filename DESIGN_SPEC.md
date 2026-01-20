@@ -1576,16 +1576,16 @@ services:
 - [x] Health check endpoint
 
 ### Phase 1: Frontend Foundation (Week 1)
-- [ ] Frontend project setup with Bun
-- [ ] Frontend Dockerfile with static server
-- [ ] Mobile-first responsive layout system
-- [ ] Bottom navigation component
-- [ ] Terminal theme CSS (mobile-optimized)
-- [ ] Touch gesture handlers
-- [ ] Backend WebSocket client (connects to backend, not Mopidy directly)
-- [ ] Mobile player controls (large touch targets)
+- [x] Frontend project setup with Bun
+- [x] Frontend Dockerfile with static server
+- [x] Mobile-first responsive layout system
+- [x] Bottom navigation component
+- [x] Terminal theme CSS (mobile-optimized)
+- [x] Touch gesture handlers (framework ready)
+- [x] Backend WebSocket client (connects to backend, not Mopidy directly)
+- [x] Mobile player controls (large touch targets)
 - [ ] Verify full stack communication (client → backend → mopidy)
-- [ ] PWA manifest and service worker setup
+- [x] PWA manifest and service worker setup
 
 ### Phase 2: Core Features (Week 2)
 - [ ] WebSocket integration
