@@ -1,12 +1,10 @@
 import auth/service
-import db/migrations
+import db/connection
 import gleeunit/should
-import sqlight
+import logging
 
 pub fn create_user_and_authenticate_test() {
-  // Setup: create in-memory database and run real migrations
-  let assert Ok(db) = sqlight.open(":memory:")
-  let assert Ok(_) = migrations.migrate(db, "src/db/migrations")
+  let assert Ok(db) = connection.initialize(":memory:")
 
   // Step 1: Create user
   let assert Ok(user) = service.create_user(db, "testuser", "testpass123")
@@ -17,16 +15,18 @@ pub fn create_user_and_authenticate_test() {
     service.authenticate(db, "testuser", "testpass123")
   authenticated_user.username |> should.equal("testuser")
   authenticated_user.id |> should.equal(user.id)
+
+  logging.log(logging.Info, "User creation and authentication test passed.")
 }
 
 pub fn authenticate_wrong_password_fails_test() {
-  let assert Ok(db) = sqlight.open(":memory:")
-  let assert Ok(_) = migrations.migrate(db, "src/db/migrations")
-
+  let assert Ok(db) = connection.initialize(":memory:")
   // Create user
   let assert Ok(_) = service.create_user(db, "testuser", "correctpass")
 
   // Try to authenticate with wrong password
   let result = service.authenticate(db, "testuser", "wrongpass")
   result |> should.be_error()
+
+  logging.log(logging.Info, "Authentication with wrong password test passed.")
 }

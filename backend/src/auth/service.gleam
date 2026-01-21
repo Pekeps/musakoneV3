@@ -32,7 +32,7 @@ pub fn create_user(
 ) -> Result(queries.User, String) {
   let pw_hash = hash_password(password)
   queries.create_user(db, username, pw_hash, epoch_now())
-  |> result.map_error(fn(_) { "Failed to create user" })
+  |> result.map_error(fn(e) { "Failed to create user - " <> string.inspect(e) })
   |> result.try(parse_first_row)
 }
 

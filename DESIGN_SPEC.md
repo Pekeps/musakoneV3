@@ -13,12 +13,14 @@
 ## 1. Mobile-First Design Principles
 
 ### 1.1 Primary Interaction Method
+
 - **Touch-First**: All controls optimized for touch interaction (minimum 44x44px touch targets)
 - **Keyboard Support**: Secondary - available for desktop users
 - **Gesture Support**: Swipe gestures for common actions
 - **Single-Hand Operation**: Controls within thumb reach on mobile devices
 
 ### 1.2 Mobile Optimization
+
 - **Responsive Design**: Mobile (320px+), Tablet (768px+), Desktop (1024px+)
 - **Portrait Mode Priority**: Primary layout for mobile portrait orientation
 - **Landscape Support**: Optimized horizontal layout for tablets/desktop
@@ -27,6 +29,7 @@
 - **Fast Loading**: < 1s on 4G networks
 
 ### 1.3 Social/Shared Usage Patterns
+
 - **Quick Access**: Minimal navigation depth (max 2 levels)
 - **Visual Feedback**: Clear confirmation of actions for social context
 - **Queue Visibility**: Always show what's playing and next tracks
@@ -40,6 +43,7 @@
 ### 1.1 Music Player Functionality
 
 #### Core Playback Controls
+
 - **Play/Pause**: Toggle playback state
 - **Next/Previous**: Navigate tracks
 - **Stop**: Stop playback completely
@@ -50,6 +54,7 @@
 - **Consume Mode**: Remove tracks after playing
 
 #### Library Management
+
 - **Browse Library**: Navigate music by:
   - Artists
   - Albums
@@ -57,7 +62,7 @@
   - Playlists
   - Folders/Files
 - **Search**: Full-text search across library
-- **Queue Management**: 
+- **Queue Management**:
   - View current queue
   - Add tracks/albums/playlists to queue
   - Remove tracks from queue
@@ -65,6 +70,7 @@
   - Reorder queue (drag or keyboard shortcuts)
 
 #### Playlist Operations
+
 - Create new playlists
 - Delete playlists
 - Add tracks to playlists
@@ -72,6 +78,7 @@
 - Load playlists into queue
 
 #### Real-time Updates
+
 - Live playback status updates
 - Queue changes synchronization
 - Library updates reflection
@@ -80,10 +87,12 @@
 ### 1.2 Authentication
 
 #### Authentication Methods
+
 - **Session-based Auth**: Cookie/session storage
 - **Token-based Auth**: JWT tokens for API requests
 
 #### User Management
+
 - Login screen with credentials
 - Remember me functionality
 - Session persistence
@@ -91,6 +100,7 @@
 - Protected routes (redirect to login if not authenticated)
 
 #### Security Considerations
+
 - Secure token storage (httpOnly cookies preferred)
 - CSRF protection
 - Rate limiting on auth endpoints
@@ -99,6 +109,7 @@
 ### 1.3 User Action Tracking
 
 #### Events to Track
+
 - **Playback Events**:
   - Track played (with timestamp)
   - Track skipped
@@ -114,17 +125,25 @@
   - Favorite tracks
 
 #### Analytics Storage
+
 - **Local Storage**: Client-side IndexedDB for basic tracking
 - **Backend API**: Optional endpoint for aggregated analytics
 - **Privacy**: No third-party tracking, user data stays local/self-hosted
 
 #### Data Structure
+
 ```typescript
 interface UserAction {
   id: string;
   userId: string;
   timestamp: number;
-  action: 'play' | 'pause' | 'skip' | 'search' | 'queue_add' | 'playlist_create';
+  action:
+    | "play"
+    | "pause"
+    | "skip"
+    | "search"
+    | "queue_add"
+    | "playlist_create";
   metadata: Record<string, any>;
 }
 ```
@@ -134,6 +153,7 @@ interface UserAction {
 ## 2. Technology Stack
 
 ### 2.1 Backend
+
 - **Language**: Gleam (functional, type-safe language on the BEAM VM)
 - **Runtime**: Erlang/OTP (BEAM VM)
 - **Web Framework**: Mist (minimal HTTP/WebSocket server)
@@ -145,18 +165,21 @@ interface UserAction {
   - Single WebSocket connection to Mopidy
 
 ### 2.2 Frontend Runtime & Build Tools
+
 - **Runtime**: Bun (latest) - fast JavaScript runtime
 - **Package Manager**: Bun
 - **Build Tool**: Bun's built-in bundler
 - **Dev Server**: Bun's built-in server
 
 ### 2.3 Frontend Framework
+
 - **Framework**: **Preact** (lightweight React alternative, 3KB)
   - Reasoning: Smallest production-ready framework
   - Full React compatibility via preact/compat
   - Excellent performance
 
 ### 2.4 State Management
+
 - **Global State**: Nanostores (~300 bytes)
   - Atomic state management
   - No boilerplate
@@ -167,12 +190,14 @@ interface UserAction {
   - Optimistic updates
 
 ### 2.5 Routing
+
 - **Router**: Wouter (~1.5KB)
   - Minimalist routing
   - Hook-based API
   - Perfect for single-page apps
 
 ### 2.6 HTTP Client
+
 - **Client**: Native Fetch API (0KB)
   - Built into all modern browsers
   - Wrap in thin utility layer if needed (~100 bytes)
@@ -180,12 +205,14 @@ interface UserAction {
   - No external dependencies
 
 ### 2.6 WebSocket Client
+
 - **WebSocket**: Native WebSocket API
   - No additional library needed
   - For real-time Mopidy updates
   - Automatic reconnection logic
 
 ### 2.8 Progressive Web App (PWA)
+
 - **Manifest**: Web app manifest for installability
 - **Service Worker**: Cache static assets for offline UI
 - **Icons**: Multiple sizes for different devices (192x192, 512x512)
@@ -194,6 +221,7 @@ interface UserAction {
 - **Add to Home Screen**: Prompt for installation
 
 ### 2.9 Styling
+
 - **Base**: CSS Modules + Modern CSS
 - **Variables**: CSS Custom Properties
 - **Terminal Theme**: Custom monospace design
@@ -201,6 +229,7 @@ interface UserAction {
 - **No CSS Framework**: Keep it minimal
 
 ### 2.10 Build Optimizations
+
 - Code splitting (route-based)
 - Tree shaking
 - Minification
@@ -208,6 +237,7 @@ interface UserAction {
 - Preact aliases for React
 
 ### 2.11 Development Tools
+
 - **TypeScript**: Full type safety
 - **Biome**: Alternative faster linter/formatter
 
@@ -403,6 +433,7 @@ App
    - Provide analytics API endpoints
 
 4. **Message Flow**
+
    ```
    Client → Backend: { method: "core.playback.play", params: {} }
    Backend logs action: {user_id: "alice", action: "play", timestamp: ...}
@@ -411,48 +442,42 @@ App
    Backend → All Clients: Broadcast event
    ```
 
-### 4.3 Mopidy HTTP API (Backend Access Only)
-- **Base URL**: `http://mopidy:6680/mopidy` (internal Docker network)
-- **Protocol**: HTTP JSON-RPC 2.0
-- **Access**: Only backend can communicate with Mopidy HTTP API
-- **Client Access**: Clients communicate exclusively through backend WebSocket
-
 ### 4.4 Core Mopidy Methods
 
 ```typescript
 // Playback
-core.playback.play()
-core.playback.pause()
-core.playback.stop()
-core.playback.next()
-core.playback.previous()
-core.playback.seek(position)
-core.playback.getState()
-core.playback.getTimePosition()
-core.playback.getCurrentTrack()
+core.playback.play();
+core.playback.pause();
+core.playback.stop();
+core.playback.next();
+core.playback.previous();
+core.playback.seek(position);
+core.playback.getState();
+core.playback.getTimePosition();
+core.playback.getCurrentTrack();
 
 // Tracklist (Queue)
-core.tracklist.getTracks()
-core.tracklist.add(tracks)
-core.tracklist.remove({ tlid })
-core.tracklist.clear()
-core.tracklist.shuffle()
+core.tracklist.getTracks();
+core.tracklist.add(tracks);
+core.tracklist.remove({ tlid });
+core.tracklist.clear();
+core.tracklist.shuffle();
 
 // Library
-core.library.browse(uri)
-core.library.search(query)
-core.library.lookup(uri)
+core.library.browse(uri);
+core.library.search(query);
+core.library.lookup(uri);
 
 // Playlists
-core.playlists.asList()
-core.playlists.lookup(uri)
-core.playlists.create(name)
-core.playlists.delete(uri)
-core.playlists.save(playlist)
+core.playlists.asList();
+core.playlists.lookup(uri);
+core.playlists.create(name);
+core.playlists.delete(uri);
+core.playlists.save(playlist);
 
 // Mixer
-core.mixer.getVolume()
-core.mixer.setVolume(volume)
+core.mixer.getVolume();
+core.mixer.setVolume(volume);
 ```
 
 ### 4.5 WebSocket Events (Mopidy → Backend → Clients)
@@ -471,46 +496,6 @@ core.mixer.setVolume(volume)
 }
 ```
 
-### 4.4 Mopidy Client Service
-
-```typescript
-class MopidyClient {
-  private ws: WebSocket;
-  private baseUrl: string;
-  
-  constructor(config: MopidyConfig) {
-    this.baseUrl = config.httpUrl;
-    this.connect();
-  }
-  
-  // HTTP JSON-RPC calls
-  async call(method: string, params?: any): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/rpc`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params })
-    });
-    
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json();
-    if (data.error) throw new Error(data.error.message);
-    return data.result;
-  }
-  
-  // WebSocket connection
-  connect(): void
-  disconnect(): void
-  on(event: string, callback: Function): void
-  
-  // High-level methods
-  async play(): Promise<void>
-  async pause(): Promise<void>
-  async getCurrentTrack(): Promise<Track>
-  async search(query: string): Promise<SearchResult>
-  // ... more methods
-}
-```
-
 ---
 
 ## 5. User Interface Design
@@ -518,23 +503,26 @@ class MopidyClient {
 ### 5.1 Mobile-First Layout Strategy
 
 #### Responsive Breakpoints
+
 ```css
 /* Mobile First */
 :root {
-  --mobile: 320px;     /* Mobile portrait */
-  --tablet: 768px;     /* Tablet portrait / large mobile */
-  --desktop: 1024px;   /* Desktop / tablet landscape */
-  --wide: 1440px;      /* Wide desktop */
+  --mobile: 320px; /* Mobile portrait */
+  --tablet: 768px; /* Tablet portrait / large mobile */
+  --desktop: 1024px; /* Desktop / tablet landscape */
+  --wide: 1440px; /* Wide desktop */
 }
 ```
 
 #### Touch Target Sizes
+
 - **Minimum**: 44x44px (iOS Human Interface Guidelines)
 - **Recommended**: 48x48px (Material Design)
 - **Comfortable**: 56x56px for primary actions
 - **Spacing**: Minimum 8px between touch targets
 
 #### Mobile Navigation
+
 - **Bottom Navigation Bar**: Fixed, always visible (Queue | Library | Search)
 - **Top Bar**: Compact status (current track, basic controls)
 - **Expandable Player**: Mini player expands to full-screen
@@ -543,6 +531,7 @@ class MopidyClient {
 ### 5.2 Terminal Aesthetic
 
 #### Color Scheme (Inspired by ncmpcpp)
+
 ```css
 :root {
   /* Background colors */
@@ -551,37 +540,39 @@ class MopidyClient {
   --bg-tertiary: #1a1a1a;
   --bg-hover: #252525;
   --bg-active: #2a2a2a;
-  
+
   /* Foreground colors */
   --fg-primary: #e0e0e0;
   --fg-secondary: #a0a0a0;
   --fg-tertiary: #606060;
   --fg-dim: #404040;
-  
+
   /* Accent colors */
-  --accent-primary: #00ff88;    /* Green - playing/active */
-  --accent-secondary: #00aaff;  /* Blue - selected */
-  --accent-warning: #ffaa00;    /* Orange - warnings */
-  --accent-error: #ff4444;      /* Red - errors */
-  
+  --accent-primary: #00ff88; /* Green - playing/active */
+  --accent-secondary: #00aaff; /* Blue - selected */
+  --accent-warning: #ffaa00; /* Orange - warnings */
+  --accent-error: #ff4444; /* Red - errors */
+
   /* Border colors */
   --border-primary: #303030;
   --border-secondary: #202020;
-  
+
   /* Typography */
-  --font-mono: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  --font-mono: "JetBrains Mono", "Fira Code", "Courier New", monospace;
   --font-size-base: 14px;
   --line-height: 1.6;
 }
 ```
 
 #### Typography
+
 - **Primary Font**: Monospace only
 - **Font Size**: 14px base, scalable
 - **Line Height**: 1.6 for readability
 - **Font Weight**: Regular (400) and Bold (700)
 
 #### Layout Principles
+
 - **No Borders**: Use subtle backgrounds for separation
 - **Minimal Padding**: Compact, information-dense
 - **Fixed-width Characters**: Align content in columns
@@ -592,6 +583,7 @@ class MopidyClient {
 ### 5.3 Screen Layouts
 
 #### Mobile Layout (Portrait - Primary)
+
 ```
 ┌────────────────────────┐
 │  MusakoneV3            │  ← Compact header
@@ -625,6 +617,7 @@ class MopidyClient {
 ```
 
 #### Mobile Player (Expanded - Full Screen)
+
 ```
 ┌────────────────────────┐
 │   ↓  [Collapse]        │  ← Swipe down to minimize
@@ -655,6 +648,7 @@ class MopidyClient {
 ```
 
 #### Tablet/Desktop Layout (Landscape)
+
 ```
 ┌──────────────────────────────────────────────────────┐
 │ MusakoneV3                          [Queue|Lib|Search]│
@@ -675,6 +669,7 @@ class MopidyClient {
 ```
 
 #### Desktop Layout (Full)
+
 ```
 ┌─ MusakoneV3 ─────────────────────────────────────────┐
 │ [Queue] [Library] [Playlists] [Search]    [User: x] │
@@ -697,6 +692,7 @@ class MopidyClient {
 ```
 
 #### Library Browse
+
 ```
 ┌─ Library > Artists > Pink Floyd ─────────────────────┐
 │                                                      │
@@ -715,6 +711,7 @@ class MopidyClient {
 ### 5.4 Component Design (Mobile-First)
 
 #### TrackList Component
+
 - **Mobile**: Card-based layout, full width
   - Large touch targets (minimum 56px height)
   - Swipeable rows (left: delete, right: add to playlist)
@@ -726,6 +723,7 @@ class MopidyClient {
   - Keyboard navigation (j/k or arrows)
 
 #### Player Controls
+
 - **Mobile**: Large circular buttons (56x56px)
   - Previous, Play/Pause, Next in center
   - Shuffle, Repeat on sides (44x44px)
@@ -736,6 +734,7 @@ class MopidyClient {
   - Hover states
 
 #### Bottom Navigation (Mobile Only)
+
 - Fixed position bottom bar
 - Three main sections: Queue | Library | Search
 - Icons + labels
@@ -743,6 +742,7 @@ class MopidyClient {
 - 64px height for comfortable thumb reach
 
 #### Modal Dialogs
+
 - **Mobile**: Bottom sheets (slide up from bottom)
   - Swipe down to dismiss
   - Backdrop tap to close
@@ -754,6 +754,7 @@ class MopidyClient {
   - Dark overlay background
 
 #### Mini Player (Mobile)
+
 - Fixed bottom (above navigation)
 - Swipe up to expand to full screen
 - Swipe down to collapse
@@ -768,16 +769,19 @@ class MopidyClient {
 
 ```typescript
 // stores/player.ts
-import { atom, computed } from 'nanostores';
+import { atom, computed } from "nanostores";
 
-export const playbackState = atom<'playing' | 'paused' | 'stopped'>('stopped');
+export const playbackState = atom<"playing" | "paused" | "stopped">("stopped");
 export const currentTrack = atom<Track | null>(null);
 export const timePosition = atom<number>(0);
 export const volume = atom<number>(100);
-export const repeat = atom<'off' | 'track' | 'all'>('off');
+export const repeat = atom<"off" | "track" | "all">("off");
 export const random = atom<boolean>(false);
 
-export const isPlaying = computed(playbackState, state => state === 'playing');
+export const isPlaying = computed(
+  playbackState,
+  (state) => state === "playing",
+);
 
 // stores/queue.ts
 export const queue = atom<Track[]>([]);
@@ -785,7 +789,7 @@ export const queueVersion = atom<number>(0);
 
 // stores/auth.ts
 export const currentUser = atom<User | null>(null);
-export const isAuthenticated = computed(currentUser, user => user !== null);
+export const isAuthenticated = computed(currentUser, (user) => user !== null);
 
 // stores/library.ts
 export const currentPath = atom<string[]>([]);
@@ -798,21 +802,21 @@ export const libraryItems = atom<LibraryItem[]>([]);
 // services/mopidy/websocket.ts
 class MopidyWebSocket {
   connect() {
-    this.ws = new WebSocket('ws://localhost:6680/mopidy/ws');
-    
+    this.ws = new WebSocket("ws://localhost:6680/mopidy/ws");
+
     this.ws.onmessage = (event) => {
       const message = JSON.parse(event.data);
-      
-      if (message.event === 'track_playback_started') {
+
+      if (message.event === "track_playback_started") {
         currentTrack.set(message.track);
-        playbackState.set('playing');
+        playbackState.set("playing");
       }
-      
-      if (message.event === 'tracklist_changed') {
+
+      if (message.event === "tracklist_changed") {
         // Refetch queue
         this.refreshQueue();
       }
-      
+
       // ... handle other events
     };
   }
@@ -833,22 +837,22 @@ Player Controls:
   Swipe right on track  - Add to playlist
   Pinch progress bar    - Fine seek control
   Long press track      - Show options menu
-  
+
 Navigation:
   Tap bottom nav        - Switch views (Queue/Library/Search)
   Swipe down            - Refresh current view
   Swipe up from bottom  - Expand mini player to full player
   Swipe down on player  - Collapse to mini player
-  
+
 Volume:
   Slide volume bar      - Adjust volume
   Tap volume icon       - Mute/Unmute
-  
+
 Queue Management:
   Drag handle           - Reorder tracks (long press + drag)
   Swipe left            - Quick remove
   Tap + icon            - Add to queue
-  
+
 Library:
   Tap item              - Open/Play
   Long press item       - Show context menu
@@ -906,20 +910,20 @@ export function useKeyboard(handlers: KeyboardHandlers) {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore if typing in input
       if (e.target instanceof HTMLInputElement) return;
-      
+
       const key = e.key.toLowerCase();
       const ctrl = e.ctrlKey;
       const shift = e.shiftKey;
-      
-      if (key === ' ') {
+
+      if (key === " ") {
         e.preventDefault();
         handlers.togglePlay?.();
       }
       // ... more handlers
     };
-    
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handlers]);
 }
 ```
@@ -949,39 +953,39 @@ export function useKeyboard(handlers: KeyboardHandlers) {
 // services/auth/auth.ts
 class AuthService {
   async login(username: string, password: string): Promise<User> {
-    const response = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
     });
-    
-    if (!response.ok) throw new Error('Login failed');
-    const data = await response.json() as AuthResponse;
-    
+
+    if (!response.ok) throw new Error("Login failed");
+    const data = (await response.json()) as AuthResponse;
+
     currentUser.set(data.user);
     this.storeToken(data.token);
-    
+
     return data.user;
   }
-  
+
   async logout(): Promise<void> {
-    await fetch('/api/auth/logout', { method: 'POST' });
+    await fetch("/api/auth/logout", { method: "POST" });
     currentUser.set(null);
     this.clearToken();
   }
-  
+
   async validateSession(): Promise<boolean> {
     try {
-      const response = await fetch('/api/auth/me');
+      const response = await fetch("/api/auth/me");
       if (!response.ok) return false;
-      const user = await response.json() as User;
+      const user = (await response.json()) as User;
       currentUser.set(user);
       return true;
     } catch {
       return false;
     }
   }
-  
+
   private storeToken(token: string): void {
     // Token stored in httpOnly cookie by server
     // Or localStorage for SPA-only mode
@@ -995,11 +999,11 @@ class AuthService {
 // components/ProtectedRoute.tsx
 function ProtectedRoute({ children }: { children: ComponentChildren }) {
   const user = useStore(currentUser);
-  
+
   if (!user) {
     return <Redirect to="/login" />;
   }
-  
+
   return <>{children}</>;
 }
 ```
@@ -1014,39 +1018,39 @@ function ProtectedRoute({ children }: { children: ComponentChildren }) {
 // services/analytics/tracker.ts
 class UserTracker {
   private db: IDBDatabase;
-  
+
   async track(action: UserAction): Promise<void> {
     const event = {
       id: crypto.randomUUID(),
       userId: currentUser.get()?.id,
       timestamp: Date.now(),
       action: action.type,
-      metadata: action.data
+      metadata: action.data,
     };
-    
+
     // Store locally
     await this.storeLocally(event);
-    
+
     // Optionally send to server
     if (this.shouldSyncToServer()) {
       await this.syncToServer(event);
     }
   }
-  
+
   async getHistory(userId: string, limit: number): Promise<UserAction[]> {
     // Query IndexedDB
     return this.queryDB({ userId, limit });
   }
-  
+
   async getStats(userId: string): Promise<UserStats> {
     const actions = await this.getHistory(userId, 1000);
-    
+
     return {
-      totalPlays: actions.filter(a => a.action === 'play').length,
-      totalSearches: actions.filter(a => a.action === 'search').length,
+      totalPlays: actions.filter((a) => a.action === "play").length,
+      totalSearches: actions.filter((a) => a.action === "search").length,
       topTracks: this.calculateTopTracks(actions),
       topArtists: this.calculateTopArtists(actions),
-      listeningTime: this.calculateListeningTime(actions)
+      listeningTime: this.calculateListeningTime(actions),
     };
   }
 }
@@ -1056,12 +1060,12 @@ class UserTracker {
 
 ```typescript
 // Track on these events:
-tracker.track({ type: 'play', data: { trackUri, trackName } });
-tracker.track({ type: 'pause', data: { position, trackUri } });
-tracker.track({ type: 'skip', data: { fromTrack, toTrack, position } });
-tracker.track({ type: 'search', data: { query, resultsCount } });
-tracker.track({ type: 'queue_add', data: { trackUri, source } });
-tracker.track({ type: 'playlist_create', data: { name, trackCount } });
+tracker.track({ type: "play", data: { trackUri, trackName } });
+tracker.track({ type: "pause", data: { position, trackUri } });
+tracker.track({ type: "skip", data: { fromTrack, toTrack, position } });
+tracker.track({ type: "search", data: { query, resultsCount } });
+tracker.track({ type: "queue_add", data: { trackUri, source } });
+tracker.track({ type: "playlist_create", data: { name, trackCount } });
 ```
 
 ### 9.3 Privacy Considerations
@@ -1077,6 +1081,7 @@ tracker.track({ type: 'playlist_create', data: { name, trackCount } });
 ## 10. Performance Targets
 
 ### 10.1 Bundle Size Goals
+
 - **Initial Bundle**: < 50KB (gzipped)
 - **Total Assets**: < 150KB (gzipped)
 - **First Contentful Paint**: < 1.5s (on 4G)
@@ -1084,6 +1089,7 @@ tracker.track({ type: 'playlist_create', data: { name, trackCount } });
 - **Largest Contentful Paint**: < 2.5s
 
 ### 10.2 Runtime Performance (Mobile Priority)
+
 - **60fps** touch interactions and scrolling
 - **< 16ms** per frame
 - **< 100ms** response to touch input
@@ -1093,6 +1099,7 @@ tracker.track({ type: 'playlist_create', data: { name, trackCount } });
 - Efficient touch event handling (passive listeners)
 
 ### 10.3 Mobile-Specific Metrics
+
 - **Touch Response**: Immediate visual feedback (< 50ms)
 - **List Scrolling**: Smooth 60fps with virtual scrolling
 - **Network Resilience**: Work on slow 3G connections
@@ -1100,6 +1107,7 @@ tracker.track({ type: 'playlist_create', data: { name, trackCount } });
 - **Offline Ready**: Core UI works without connection
 
 ### 10.3 Optimization Strategies
+
 - Route-based code splitting
 - Lazy load non-critical components
 - Virtual scrolling for large lists (>500 items)
@@ -1218,18 +1226,21 @@ SOUNDCLOUD_AUTH_TOKEN=
 ## 12. Testing Strategy
 
 ### 12.1 Unit Tests
+
 - Test utility functions
 - Test state management
 - Test pure components
 - Use Bun's built-in test runner
 
 ### 12.2 Integration Tests
+
 - Test Mopidy client integration
 - Test authentication flow
 - Test WebSocket connection handling
 - Mock external dependencies
 
 ### 12.3 E2E Tests (Optional)
+
 - Test critical user flows
 - Use Playwright for browser automation
 - Automated smoke tests
@@ -1251,7 +1262,7 @@ Both services communicate over a shared Docker network.
 
 ```yaml
 # docker-compose.yml
-version: '3.8'
+version: "3.8"
 
 services:
   mopidy:
@@ -1259,8 +1270,8 @@ services:
     container_name: musakone-mopidy
     restart: unless-stopped
     ports:
-      - "${MOPIDY_HTTP_PORT:-6680}:6680"   # HTTP API
-      - "6600:6600"                          # MPD protocol (optional)
+      - "${MOPIDY_HTTP_PORT:-6680}:6680" # HTTP API
+      - "6600:6600" # MPD protocol (optional)
     volumes:
       - ./mopidy/mopidy.conf:/config/mopidy.conf:ro
       - ./data/mopidy:/var/lib/mopidy
@@ -1514,7 +1525,7 @@ For production deployment, consider:
 
 ```yaml
 # docker-compose.prod.yml
-version: '3.8'
+version: "3.8"
 
 services:
   mopidy:
@@ -1557,6 +1568,7 @@ services:
 ## 14. Implementation Phases
 
 ### Phase 0: Infrastructure Setup (Day 1-2)
+
 - [x] Docker Compose configuration (3 services: backend, frontend, mopidy)
 - [x] Mopidy container setup and configuration
 - [x] Network and volume configuration
@@ -1565,6 +1577,7 @@ services:
 - [x] Documentation for setup
 
 ### Phase 0.5: Backend Foundation (Day 3-4)
+
 - [x] Gleam project setup
 - [x] Backend Dockerfile
 - [x] SQLite database schema for user tracking
@@ -1576,6 +1589,7 @@ services:
 - [x] Health check endpoint
 
 ### Phase 1: Frontend Foundation (Week 1)
+
 - [x] Frontend project setup with Bun
 - [x] Frontend Dockerfile with static server
 - [x] Mobile-first responsive layout system
@@ -1584,23 +1598,25 @@ services:
 - [x] Touch gesture handlers (framework ready)
 - [x] Backend WebSocket client (connects to backend, not Mopidy directly)
 - [x] Mobile player controls (large touch targets)
-- [ ] Verify full stack communication (client → backend → mopidy)
+- [x] Verify full stack communication (client → backend → mopidy)
 - [x] PWA manifest and service worker setup
 
 ### Phase 2: Core Features (Week 2)
+
 - [ ] WebSocket integration
 - [ ] Queue management
 - [ ] Library browsing
 - [ ] Search functionality
-- [ ] Keyboard shortcuts
 
 ### Phase 3: Authentication (Week 3)
+
 - [ ] Login screen
 - [ ] Auth service implementation
 - [ ] Protected routes
 - [ ] Session management
 
 ### Phase 4: Advanced Features (Week 4)
+
 - [ ] Playlist management
 - [ ] User action tracking
 - [ ] Statistics dashboard
@@ -1608,6 +1624,7 @@ services:
 - [ ] Help/shortcuts overlay
 
 ### Phase 5: Polish & Optimization (Week 5)
+
 - [ ] Performance optimization
 - [ ] Bundle size reduction
 - [ ] Accessibility improvements
@@ -1615,6 +1632,7 @@ services:
 - [ ] Loading states
 
 ### Phase 6: Testing & Deployment (Week 6)
+
 - [ ] Unit tests
 - [ ] Integration tests
 - [ ] Documentation
@@ -1626,6 +1644,7 @@ services:
 ## 15. Success Criteria
 
 ### Functional
+
 - ✓ All playback controls working
 - ✓ Real-time queue updates
 - ✓ Library browsing works smoothly
@@ -1634,6 +1653,7 @@ services:
 - ✓ User actions are tracked
 
 ### Non-functional
+
 - ✓ Bundle size < 50KB gzipped
 - ✓ Page load < 2s on 4G mobile
 - ✓ 60fps smooth touch interactions
@@ -1644,6 +1664,7 @@ services:
 - ✓ Keyboard navigation works on desktop
 
 ### User Experience (Mobile Priority)
+
 - ✓ Feels like a native mobile app
 - ✓ One-handed operation comfortable
 - ✓ Fast and responsive on mobile
@@ -1658,6 +1679,7 @@ services:
 ## 16. Future Enhancements (Post-MVP)
 
 ### Potential Features
+
 - **Visualizations**: ASCII-art audio visualizer
 - **Themes**: Multiple terminal color schemes
 - **Lyrics**: Display synchronized lyrics
@@ -1674,30 +1696,35 @@ services:
 ## 17. Technical Decisions & Rationale
 
 ### Why Preact?
+
 - Smallest React-compatible library (3KB)
 - Excellent performance
 - Familiar API for React developers
 - Active maintenance and community
 
 ### Why Nanostores?
+
 - Tiny footprint (300 bytes)
 - No boilerplate
 - Framework-agnostic (future-proof)
 - Simple atom/computed pattern
 
 ### Why Bun?
+
 - Fastest JavaScript runtime
 - Built-in bundler (no webpack/vite config needed)
 - Native TypeScript support
 - Package manager + runtime + bundler in one
 
 ### Why No CSS Framework?
+
 - Terminal aesthetic requires custom styling
 - Frameworks add unnecessary bloat
 - Modern CSS is powerful enough
 - Full control over appearance
 
 ### Why Monospace Only?
+
 - Consistent with terminal theme
 - Easier to create aligned layouts
 - Distinctive visual identity
@@ -1724,31 +1751,32 @@ PUT    /api/settings            # Update settings
 ```
 
 ### Mopidy Proxy (Optional)
+
 If Mopidy is not directly accessible, create a simple proxy:
 
 ```typescript
 // server/mopidy-proxy.ts
-import { serve } from 'bun';
+import { serve } from "bun";
 
 serve({
   port: 3000,
-  
+
   async fetch(req) {
     const url = new URL(req.url);
-    
+
     // Proxy to Mopidy
-    if (url.pathname.startsWith('/mopidy')) {
+    if (url.pathname.startsWith("/mopidy")) {
       const mopidyUrl = `http://localhost:6680${url.pathname}`;
       return fetch(mopidyUrl, {
         method: req.method,
         headers: req.headers,
-        body: req.body
+        body: req.body,
       });
     }
-    
+
     // Handle auth/analytics endpoints
     // ...
-  }
+  },
 });
 ```
 
@@ -1757,6 +1785,7 @@ serve({
 ## 19. Accessibility Considerations
 
 ### Touch Accessibility
+
 - **Touch Targets**: Minimum 44x44px (WCAG 2.5.5)
 - **Spacing**: Adequate spacing between touch targets
 - **Gestures**: Alternative methods for all gesture-based actions
@@ -1764,18 +1793,21 @@ serve({
 - **Motion**: Respect prefers-reduced-motion
 
 ### Keyboard Navigation (Desktop)
+
 - All functionality accessible via keyboard
 - Visible focus indicators
 - Logical tab order
 - Skip navigation links
 
 ### Screen Readers
+
 - Semantic HTML
 - ARIA labels where needed
 - Live regions for dynamic content
 - Alt text for images (if any)
 
 ### Visual
+
 - High contrast text (WCAG AAA)
 - Scalable text size
 - No information conveyed by color alone
@@ -1786,6 +1818,7 @@ serve({
 ## 20. Browser Support
 
 ### Target Browsers (Mobile Priority)
+
 - **Mobile Safari**: iOS 15+ (primary)
 - **Chrome Android**: Last 2 versions (primary)
 - **Samsung Internet**: Last 2 versions
@@ -1794,6 +1827,7 @@ serve({
 - Safari Desktop: Last 2 versions
 
 ### Mobile-Specific Considerations
+
 - Touch event handling
 - Safe area insets (iPhone notch)
 - Viewport height quirks (address bar)
@@ -1802,6 +1836,7 @@ serve({
 - PWA support
 
 ### Required Features
+
 - ES2020+ JavaScript
 - CSS Grid & Flexbox
 - CSS Custom Properties
@@ -1893,31 +1928,31 @@ serve({
 
 ```typescript
 // frontend/public/sw.js
-const CACHE_NAME = 'musakone-v1';
+const CACHE_NAME = "musakone-v1";
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  '/assets/index.js',
-  '/assets/index.css',
-  '/manifest.json'
+  "/",
+  "/index.html",
+  "/assets/index.js",
+  "/assets/index.css",
+  "/manifest.json",
 ];
 
 // Install - cache static assets
-self.addEventListener('install', (event) => {
+self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(STATIC_ASSETS);
-    })
+    }),
   );
 });
 
 // Fetch - network first, fallback to cache
-self.addEventListener('fetch', (event) => {
+self.addEventListener("fetch", (event) => {
   // Skip Mopidy API calls
-  if (event.request.url.includes('/mopidy/')) {
+  if (event.request.url.includes("/mopidy/")) {
     return;
   }
-  
+
   event.respondWith(
     fetch(event.request)
       .then((response) => {
@@ -1929,20 +1964,20 @@ self.addEventListener('fetch', (event) => {
       })
       .catch(() => {
         return caches.match(event.request);
-      })
+      }),
   );
 });
 
 // Activate - cleanup old caches
-self.addEventListener('activate', (event) => {
+self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames
           .filter((name) => name !== CACHE_NAME)
-          .map((name) => caches.delete(name))
+          .map((name) => caches.delete(name)),
       );
-    })
+    }),
   );
 });
 ```
@@ -1953,20 +1988,29 @@ self.addEventListener('activate', (event) => {
 <!-- frontend/index.html -->
 <head>
   <!-- PWA -->
-  <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#00ff88">
-  
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#00ff88" />
+
   <!-- iOS -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Musakone">
-  <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
-  
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta
+    name="apple-mobile-web-app-status-bar-style"
+    content="black-translucent"
+  />
+  <meta name="apple-mobile-web-app-title" content="Musakone" />
+  <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+
   <!-- Viewport -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
-  
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover"
+  />
+
   <!-- Prevent zoom on double tap -->
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+  />
 </head>
 ```
 
@@ -2011,7 +2055,7 @@ interface SearchResult {
 }
 
 interface PlaybackState {
-  state: 'playing' | 'paused' | 'stopped';
+  state: "playing" | "paused" | "stopped";
   track: Track | null;
   time_position: number;
   volume: number;
@@ -2039,15 +2083,15 @@ interface UserAction {
   metadata: Record<string, any>;
 }
 
-type ActionType = 
-  | 'play'
-  | 'pause'
-  | 'skip'
-  | 'search'
-  | 'queue_add'
-  | 'playlist_create'
-  | 'playlist_modify'
-  | 'volume_change';
+type ActionType =
+  | "play"
+  | "pause"
+  | "skip"
+  | "search"
+  | "queue_add"
+  | "playlist_create"
+  | "playlist_modify"
+  | "volume_change";
 
 interface UserStats {
   totalPlays: number;
@@ -2082,7 +2126,7 @@ export function Controls() {
   const state = useStore(playbackState);
   const track = useStore(currentTrack);
   const mopidy = useMopidy();
-  
+
   const handlePlayPause = () => {
     if (state === 'playing') {
       mopidy.pause();
@@ -2090,31 +2134,31 @@ export function Controls() {
       mopidy.play();
     }
   };
-  
+
   return (
     <div class={styles.controls}>
-      <button 
+      <button
         onClick={() => mopidy.previous()}
         aria-label="Previous track"
       >
         ⏮ prev
       </button>
-      
-      <button 
+
+      <button
         onClick={handlePlayPause}
         aria-label={state === 'playing' ? 'Pause' : 'Play'}
       >
         {state === 'playing' ? '⏸ pause' : '▶ play'}
       </button>
-      
-      <button 
+
+      <button
         onClick={() => mopidy.next()}
         aria-label="Next track"
       >
         next ⏭
       </button>
-      
-      <button 
+
+      <button
         onClick={() => mopidy.stop()}
         aria-label="Stop playback"
       >
@@ -2170,4 +2214,4 @@ export function Controls() {
 
 ---
 
-*This specification is a living document and should be updated as the project evolves.*
+_This specification is a living document and should be updated as the project evolves._

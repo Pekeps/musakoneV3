@@ -2,13 +2,18 @@
  * Authentication state management
  */
 
-import { atom } from 'nanostores';
+import { atom, computed } from 'nanostores';
 import type { User } from '../services/auth';
 
 /**
  * Current authenticated user (null if not logged in)
  */
 export const currentUser = atom<User | null>(null);
+
+/**
+ * Computed store for authentication status
+ */
+export const isAuthenticatedStore = computed(currentUser, user => user !== null);
 
 /**
  * Authentication loading state

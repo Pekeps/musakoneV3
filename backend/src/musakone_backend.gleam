@@ -13,6 +13,7 @@ import handlers/http as http_handlers
 import logging
 import mist
 import websocket/handler as ws_handler
+import websocket/mopidy_client
 
 pub fn main() {
   logging.configure()
@@ -20,22 +21,18 @@ pub fn main() {
 
   let port = 3001
 
-  // External configuration (from environment)
-  // For local development, use: DB_PATH=./data/musakone.db
   let db_path =
     envoy.get("DB_PATH")
-    |> result.unwrap("/app/data/musakone.db")
+    |> result.unwrap("./data/musakone.db")
 
   let jwt_secret =
     envoy.get("JWT_SECRET")
     |> result.unwrap("change-this-secret-in-production")
 
-  // For local development, use: MOPIDY_URL=ws://localhost:6680/mopidy/ws
   let mopidy_url =
     envoy.get("MOPIDY_URL")
-    |> result.unwrap("ws://mopidy:6680/mopidy/ws")
+    |> result.unwrap("ws://localhost:6680/mopidy/ws")
 
-  logging.log(logging.Info, "")
   logging.log(logging.Info, "╔══════════════════════════════════════╗")
   logging.log(logging.Info, "║   MusakoneV3 Backend Starting...     ║")
   logging.log(logging.Info, "╚══════════════════════════════════════╝")
@@ -46,55 +43,39 @@ pub fn main() {
   logging.log(logging.Info, "  • Mopidy URL: " <> mopidy_url)
   logging.log(logging.Info, "")
 
-  // Open database connection
-  case connection.initialize(db_path) {
-    Ok(db) -> {
-      logging.log(logging.Info, "✓ Database connected and initialized")
-      logging.log(logging.Info, "")
+  use db <- result.try(connection.initialize(db_path))
 
-      // Create app state
-      let state =
-        http_handlers.AppState(
-          db: db,
-          jwt_secret: jwt_secret,
-          mopidy_url: mopidy_url,
-        )
+  logging.log(logging.Info, "✓ Database connected and initialized")
 
-      // Start Mist server
-      let assert Ok(_) =
-        fn(req: Request(mist.Connection)) -> Response(mist.ResponseData) {
-          handle_request(req, state)
-        }
-        |> mist.new
-        |> mist.bind("0.0.0.0")
-        |> mist.port(port)
-        |> mist.start
+  // Initialize shared Mopidy WebSocket connection
+  use mopidy_connection <- result.try(
+    mopidy_client.start(mopidy_url)
+    |> result.map_error(string.inspect),
+  )
 
-      logging.log(logging.Info, "✓ Server started successfully!")
-      logging.log(logging.Info, "")
-      logging.log(logging.Info, "Available endpoints:")
-      logging.log(logging.Info, "  • GET  /api/health")
-      logging.log(logging.Info, "  • POST /api/auth/login")
-      logging.log(logging.Info, "  • POST /api/auth/register")
-      logging.log(logging.Info, "  • GET  /api/auth/me")
-      logging.log(logging.Info, "  • POST /api/analytics/actions")
-      logging.log(logging.Info, "  • GET  /api/analytics/actions")
-      logging.log(logging.Info, "  • GET  /api/analytics/stats")
-      logging.log(logging.Info, "  • WS   /ws")
-      logging.log(logging.Info, "")
-      logging.log(logging.Info, "Ready to accept connections!")
-      logging.log(logging.Info, "")
+  logging.log(logging.Info, "")
 
-      process.sleep_forever()
+  // Create app state
+  let state =
+    http_handlers.AppState(
+      db: db,
+      jwt_secret: jwt_secret,
+      mopidy_subject: mopidy_connection,
+    )
+
+  // Start Mist server
+  let assert Ok(_) =
+    fn(req: Request(mist.Connection)) -> Response(mist.ResponseData) {
+      handle_request(req, state)
     }
-    Error(e) -> {
-      logging.log(logging.Error, "")
-      logging.log(logging.Error, "✗ Failed to connect to database:")
-      logging.log(logging.Error, "  " <> e)
-      logging.log(logging.Error, "")
-      Nil
-    }
-  }
+    |> mist.new
+    |> mist.bind("0.0.0.0")
+    |> mist.port(port)
+    |> mist.start
+
+  logging.log(logging.Info, "✓ Server started successfully!")
+
+  Ok(process.sleep_forever())
 }
 
 fn handle_request(
@@ -128,12 +109,13 @@ fn handle_request(
     http.Options, _ -> {
       response.new(204)
       |> response.set_body(mist.Bytes(bytes_tree.new()))
-      |> with_cors
+      // |> with_cors
     }
 
     // Health check
-    http.Get, ["api", "health"] -> http_handlers.health_check() |> with_cors
+    http.Get, ["api", "health"] -> http_handlers.health_check()
 
+    // |> with_cors
     // Auth endpoints
     http.Post, ["api", "auth", "login"] -> {
       case mist.read_body(req, max_body_limit: 1024 * 1024) {
@@ -211,7 +193,7 @@ fn handle_request(
 
     // WebSocket endpoint
     http.Get, ["ws"] -> {
-      ws_handler.handle_websocket(req, state.mopidy_url)
+      ws_handler.handle_websocket(req, state.mopidy_subject)
       |> with_cors
     }
 

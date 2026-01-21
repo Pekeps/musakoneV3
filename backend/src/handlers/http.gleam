@@ -3,6 +3,7 @@ import auth/service
 import db/queries
 import gleam/bytes_tree
 import gleam/dynamic/decode
+import gleam/erlang/process.{type Subject}
 import gleam/float
 import gleam/http/response.{type Response}
 import gleam/int
@@ -15,9 +16,14 @@ import gleam/time/timestamp
 import logging
 import mist.{type ResponseData}
 import sqlight
+import websocket/mopidy_client.{type MopidyMessage}
 
 pub type AppState {
-  AppState(db: sqlight.Connection, jwt_secret: String, mopidy_url: String)
+  AppState(
+    db: sqlight.Connection,
+    jwt_secret: String,
+    mopidy_subject: Subject(MopidyMessage),
+  )
 }
 
 pub type LoginRequest {
@@ -96,9 +102,7 @@ pub fn register(state: AppState, body: String) -> Response(ResponseData) {
   let _ = logging.log(logging.Debug, "Register request received: " <> body)
   case parse_login_request(body) {
     Ok(req) -> {
-      let _ =
-        logging.log(logging.Debug, "Parsed register request" <> req.username)
-      case service.create_user(state.db, req.username, req.password) {
+      let _ = case service.create_user(state.db, req.username, req.password) {
         Ok(user) -> {
           let response_json =
             json.object([
@@ -135,13 +139,20 @@ pub fn me(state: AppState, auth_header: String) -> Response(ResponseData) {
         Ok(jwt_data) -> {
           case get_user_id_from_jwt(jwt_data) {
             Ok(user_id) -> {
-              // For now, return user_id - in production, query database
-              json.object([
-                #("id", json.int(user_id)),
-                #("authenticated", json.bool(True)),
-              ])
-              |> json.to_string
-              |> respond_json(200)
+              // Query database to get full user data
+              case queries.get_user_by_id(state.db, user_id) {
+                Ok([user, ..]) -> {
+                  json.object([
+                    #("id", json.int(user.id)),
+                    #("username", json.string(user.username)),
+                    #("created_at", json.int(user.created_at)),
+                  ])
+                  |> json.to_string
+                  |> respond_json(200)
+                }
+                Ok([]) -> error_response("User not found", 404)
+                Error(_) -> error_response("Database error", 500)
+              }
             }
             Error(e) -> error_response("Invalid token: " <> e, 401)
           }

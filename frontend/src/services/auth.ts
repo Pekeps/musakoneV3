@@ -87,14 +87,14 @@ export function isAuthenticated(): boolean {
 /**
  * Get current user info from backend
  */
-export async function getCurrentUser(): Promise<{ id: number; authenticated: boolean }> {
+export async function getCurrentUser(): Promise<User> {
   const token = getToken();
   if (!token) {
     throw new Error('Not authenticated');
   }
 
   const response = await fetch(`${BACKEND_URL}/api/auth/me`, {
-    headers: { 
+    headers: {
       'Authorization': `Bearer ${token}`
     }
   });

@@ -3,14 +3,53 @@
   bottom: var(--bottom-nav-height);
   left: 0;
   right: 0;
-  height: var(--mini-player-height);
   background: var(--bg-tertiary);
   border-top: 1px solid var(--border-primary);
+  display: flex;
+  flex-direction: column;
+  z-index: 99;
+}
+
+.progressBar {
+  position: relative;
+  height: 4px;
+  background: var(--bg-secondary);
+  flex-shrink: 0;
+}
+
+.progressBar::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: var(--progress, 0%);
+  background: var(--accent-primary);
+  transition: width 0.1s linear;
+}
+
+.progressInput {
+  position: absolute;
+  top: -6px;
+  left: 0;
+  width: 100%;
+  height: 16px;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.progressInput:hover + .progressBar::before {
+  background: var(--accent-secondary);
+}
+
+.content {
   display: flex;
   align-items: center;
   padding: var(--spacing-sm) var(--spacing-md);
   gap: var(--spacing-md);
-  z-index: 99;
+  min-height: calc(var(--mini-player-height) - 4px);
 }
 
 .trackInfo {
@@ -42,9 +81,17 @@
   font-style: italic;
 }
 
+.time {
+  font-size: var(--font-size-xs);
+  color: var(--fg-tertiary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .controls {
   display: flex;
-  gap: var(--spacing-sm);
+  gap: var(--spacing-xs);
+  flex-shrink: 0;
 }
 
 .controlButton {
@@ -61,8 +108,12 @@
   transition: all var(--transition-fast);
 }
 
+.controlButton:hover {
+  border-color: var(--accent-primary);
+}
+
 .controlButton:active {
-  transform: scale(0.9);
+  transform: scale(0.95);
   background: var(--bg-primary);
 }
 
@@ -71,18 +122,23 @@
   cursor: not-allowed;
 }
 
-.controlButton svg {
-  width: 24px;
-  height: 24px;
+.controlButton:disabled:hover {
+  border-color: var(--border-primary);
 }
 
 .playButton {
   background: var(--accent-primary);
   color: var(--bg-primary);
+  border-color: var(--accent-primary);
+}
+
+.playButton:hover {
+  filter: brightness(1.1);
 }
 
 .playButton:active {
-  background: var(--accent-secondary);
+  filter: brightness(0.9);
+  background: var(--accent-primary);
 }
 
 @media (min-width: 768px) {

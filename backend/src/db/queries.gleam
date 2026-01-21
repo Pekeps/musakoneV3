@@ -39,6 +39,19 @@ WHERE username = ?"
   sqlight.query(sql, db, [sqlight.text(username)], user_decoder())
 }
 
+/// Get user by ID
+pub fn get_user_by_id(
+  db: sqlight.Connection,
+  user_id: Int,
+) -> Result(List(User), sqlight.Error) {
+  let sql =
+    "SELECT id, username, created_at, last_login
+FROM users
+WHERE id = ?"
+
+  sqlight.query(sql, db, [sqlight.int(user_id)], user_decoder())
+}
+
 /// Create a new user
 pub fn create_user(
   db: sqlight.Connection,
