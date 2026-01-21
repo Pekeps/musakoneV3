@@ -1,8 +1,9 @@
 import { useEffect, useState } from "preact/hooks";
 import { useStore } from "@nanostores/preact";
-import { Trash2, X, RefreshCw } from "lucide-preact";
+import { Trash2, RefreshCw, Play } from "lucide-preact";
 import { queue, setQueue } from "../stores/queue";
 import { currentTrack } from "../stores/player";
+import { PlaybackFlags } from "../components/PlaybackFlags";
 import * as mopidy from "../services/mopidy";
 import styles from "./QueueView.module.css";
 
@@ -11,6 +12,7 @@ export function QueueView() {
   const current = useStore(currentTrack);
   const [loading, setLoading] = useState(false);
   const [currentTlid, setCurrentTlid] = useState<number | null>(null);
+  const [selectedTlid, setSelectedTlid] = useState<number | null>(null);
 
   const loadQueue = async () => {
     setLoading(true);
@@ -32,6 +34,21 @@ export function QueueView() {
     loadQueue();
   }, []);
 
+  // Close overlay when clicking anywhere
+  useEffect(() => {
+    if (selectedTlid === null) return;
+
+    const handleClickOutside = () => setSelectedTlid(null);
+    // Delay adding listener to avoid catching the double-click that opened it
+    const timeout = setTimeout(() => {
+      document.addEventListener("click", handleClickOutside);
+    }, 0);
+    return () => {
+      clearTimeout(timeout);
+      document.removeEventListener("click", handleClickOutside);
+    };
+  }, [selectedTlid]);
+
   const handlePlayTrack = async (tlid: number) => {
     try {
       await mopidy.play(tlid);
@@ -45,9 +62,14 @@ export function QueueView() {
     try {
       await mopidy.removeFromTracklist([tlid]);
       setQueue(queueTracks.filter((t) => t.tlid !== tlid));
+      if (selectedTlid === tlid) setSelectedTlid(null);
     } catch (err) {
       console.error("Failed to remove track:", err);
     }
+  };
+
+  const handleTrackDoubleClick = (tlid: number) => {
+    setSelectedTlid(selectedTlid === tlid ? null : tlid);
   };
 
   const handleClearQueue = async () => {
@@ -94,7 +116,10 @@ export function QueueView() {
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <h2 className={styles.title}>Queue ({queueTracks.length})</h2>
+        <div className={styles.titleRow}>
+          <h2 className={styles.title}>Queue ({queueTracks.length})</h2>
+          <PlaybackFlags />
+        </div>
         <div className={styles.actions}>
           <button
             className={styles.actionBtn}
@@ -104,13 +129,13 @@ export function QueueView() {
           >
             <RefreshCw size={16} className={loading ? styles.spinning : ""} />
           </button>
-          <button
-            className={styles.actionBtn}
-            onClick={handleShuffle}
-            aria-label="Shuffle queue"
-          >
-            Shuffle
-          </button>
+          {/* <button */}
+          {/*   className={styles.actionBtn} */}
+          {/*   onClick={handleShuffle} */}
+          {/*   aria-label="Shuffle queue" */}
+          {/* > */}
+          {/*   Shuffle */}
+          {/* </button> */}
           <button
             className={`${styles.actionBtn} ${styles.clearBtn}`}
             onClick={handleClearQueue}
@@ -125,16 +150,14 @@ export function QueueView() {
         {queueTracks.map((item, index) => {
           const isCurrentTrack =
             item.tlid === currentTlid || item.track.uri === current?.uri;
+          const isSelected = selectedTlid === item.tlid;
           return (
             <div
               key={item.tlid}
               className={`${styles.track} ${isCurrentTrack ? styles.current : ""}`}
+              onDblClick={() => handleTrackDoubleClick(item.tlid)}
             >
-              <button
-                className={styles.playBtn}
-                onClick={() => handlePlayTrack(item.tlid)}
-                aria-label={`Play ${item.track.name}`}
-              >
+              <div className={styles.indexCell}>
                 {isCurrentTrack ? (
                   <span className={styles.playingIndicator}>
                     <span></span>
@@ -144,7 +167,7 @@ export function QueueView() {
                 ) : (
                   <span className={styles.index}>{index + 1}</span>
                 )}
-              </button>
+              </div>
               <div className={styles.info}>
                 <div className={styles.name}>{item.track.name}</div>
                 <div className={styles.artist}>
@@ -155,13 +178,27 @@ export function QueueView() {
               <div className={styles.duration}>
                 {formatDuration(item.track.duration)}
               </div>
-              <button
-                className={styles.removeBtn}
-                onClick={() => handleRemoveTrack(item.tlid)}
-                aria-label={`Remove ${item.track.name}`}
-              >
-                <X size={18} />
-              </button>
+              {isSelected && (
+                <div className={styles.overlay} onClick={(e) => e.stopPropagation()}>
+                  <button
+                    className={styles.overlayBtn}
+                    onClick={() => {
+                      handlePlayTrack(item.tlid);
+                      setSelectedTlid(null);
+                    }}
+                  >
+                    <Play size={18} />
+                    Play
+                  </button>
+                  <button
+                    className={`${styles.overlayBtn} ${styles.overlayBtnDanger}`}
+                    onClick={() => handleRemoveTrack(item.tlid)}
+                  >
+                    <Trash2 size={18} />
+                    Remove
+                  </button>
+                </div>
+              )}
             </div>
           );
         })}

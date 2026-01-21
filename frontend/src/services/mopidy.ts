@@ -9,7 +9,9 @@ import { setQueue } from '../stores/queue';
 import { setConnectionStatus } from '../stores/connection';
 import { getToken } from './auth';
 
-const BACKEND_WS_URL = import.meta.env.VITE_BACKEND_WS_URL || 'ws://localhost:3001/ws';
+const BACKEND_WS_URL =
+  import.meta.env.VITE_BACKEND_WS_URL ||
+  `ws://${window.location.hostname}:3001/ws`;
 
 interface JsonRpcRequest {
   jsonrpc: '2.0';
@@ -482,7 +484,7 @@ class MopidyWebSocket {
 
   // Get full playback state
   async getFullState(): Promise<FullPlaybackState> {
-    const [state, currentTlTrack, timePosition, volume, repeat, single, random] = await Promise.all([
+    const [state, currentTlTrack, timePosition, volume, repeat, single, random, consume] = await Promise.all([
       this.getState(),
       this.rpc<MopidyTlTrack | null>('core.playback.get_current_tl_track'),
       this.getTimePosition(),
@@ -490,6 +492,7 @@ class MopidyWebSocket {
       this.rpc<boolean>('core.tracklist.get_repeat'),
       this.rpc<boolean>('core.tracklist.get_single'),
       this.rpc<boolean>('core.tracklist.get_random'),
+      this.rpc<boolean>('core.tracklist.get_consume'),
     ]);
 
     return {
@@ -501,7 +504,35 @@ class MopidyWebSocket {
       repeat,
       single,
       random,
+      consume,
     };
+  }
+
+  // Playback options
+  async getPlaybackOptions(): Promise<PlaybackOptions> {
+    const [repeat, random, single, consume] = await Promise.all([
+      this.rpc<boolean>('core.tracklist.get_repeat'),
+      this.rpc<boolean>('core.tracklist.get_random'),
+      this.rpc<boolean>('core.tracklist.get_single'),
+      this.rpc<boolean>('core.tracklist.get_consume'),
+    ]);
+    return { repeat, random, single, consume };
+  }
+
+  async setRepeat(value: boolean): Promise<void> {
+    await this.rpc('core.tracklist.set_repeat', { value });
+  }
+
+  async setRandom(value: boolean): Promise<void> {
+    await this.rpc('core.tracklist.set_random', { value });
+  }
+
+  async setSingle(value: boolean): Promise<void> {
+    await this.rpc('core.tracklist.set_single', { value });
+  }
+
+  async setConsume(value: boolean): Promise<void> {
+    await this.rpc('core.tracklist.set_consume', { value });
   }
 }
 
@@ -551,6 +582,14 @@ export interface FullPlaybackState {
   repeat: boolean;
   single: boolean;
   random: boolean;
+  consume: boolean;
+}
+
+export interface PlaybackOptions {
+  repeat: boolean;
+  random: boolean;
+  single: boolean;
+  consume: boolean;
 }
 
 // Singleton instance
@@ -581,5 +620,10 @@ export const browse = (uri?: string) => mopidyClient.browse(uri);
 export const lookup = (uris: string[]) => mopidyClient.lookup(uris);
 export const search = (query: string) => mopidyClient.search(query);
 export const getFullState = () => mopidyClient.getFullState();
+export const getPlaybackOptions = () => mopidyClient.getPlaybackOptions();
+export const setRepeat = (value: boolean) => mopidyClient.setRepeat(value);
+export const setRandom = (value: boolean) => mopidyClient.setRandom(value);
+export const setSingle = (value: boolean) => mopidyClient.setSingle(value);
+export const setConsume = (value: boolean) => mopidyClient.setConsume(value);
 
 export default mopidyClient;

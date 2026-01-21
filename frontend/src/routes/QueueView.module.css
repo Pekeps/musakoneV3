@@ -14,6 +14,12 @@
   flex-shrink: 0;
 }
 
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
 .title {
   font-size: 1.25rem;
   color: var(--accent-primary);
@@ -86,6 +92,8 @@
   border-bottom: 1px solid var(--border-secondary);
   min-height: var(--touch-target-min);
   transition: background var(--transition-fast);
+  position: relative;
+  cursor: pointer;
 }
 
 .track:active {
@@ -101,21 +109,14 @@
   color: var(--accent-primary);
 }
 
-.playBtn {
+.indexCell {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 40px;
   height: 40px;
-  background: none;
-  border: none;
   color: var(--fg-tertiary);
-  cursor: pointer;
   flex-shrink: 0;
-}
-
-.playBtn:hover {
-  color: var(--accent-primary);
 }
 
 .index {
@@ -189,24 +190,6 @@
   flex-shrink: 0;
 }
 
-.removeBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--touch-target-min);
-  height: var(--touch-target-min);
-  background: none;
-  border: none;
-  color: var(--fg-tertiary);
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: color var(--transition-fast);
-}
-
-.removeBtn:hover {
-  color: var(--error);
-}
-
 .empty {
   display: flex;
   flex-direction: column;
@@ -250,4 +233,43 @@
   justify-content: center;
   min-height: 50vh;
   color: var(--fg-secondary);
+}
+
+.overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  gap: 1px;
+  background: var(--border-primary);
+}
+
+.overlayBtn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+  background: var(--bg-secondary);
+  border: none;
+  color: var(--fg-primary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.overlayBtn:hover {
+  background: var(--bg-tertiary);
+  color: var(--accent-primary);
+}
+
+.overlayBtn:active {
+  background: var(--bg-primary);
+}
+
+.overlayBtnDanger:hover {
+  color: var(--error);
 }

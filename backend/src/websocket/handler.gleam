@@ -12,10 +12,7 @@ import mist.{type ResponseData, type WebsocketConnection, type WebsocketMessage}
 
 /// State for each WebSocket connection
 pub type WsState {
-  WsState(
-    event_bus: Subject(BusMessage),
-    event_subject: Subject(MopidyEvent),
-  )
+  WsState(event_bus: Subject(BusMessage), event_subject: Subject(MopidyEvent))
 }
 
 /// WebSocket handler for client connections
@@ -88,7 +85,7 @@ fn handle_message(
     mist.Custom(event) -> {
       case event {
         event_bus.MessageReceived(data) -> {
-          logging.log(logging.Debug, "Mopidy -> Browser: " <> data)
+          logging.log(logging.Debug, "Backend -> Browser: " <> data)
           case mist.send_text_frame(conn, data) {
             Ok(_) -> Nil
             Error(err) -> {

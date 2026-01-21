@@ -1,39 +1,64 @@
-import { useEffect, useRef } from 'preact/hooks';
-import { useStore } from '@nanostores/preact';
-import { Play, Pause, SkipForward, SkipBack } from 'lucide-preact';
+import { useEffect, useRef } from "preact/hooks";
+import { useStore } from "@nanostores/preact";
+import { Play, Pause, SkipForward, SkipBack } from "lucide-preact";
 import {
   currentTrack,
   isPlaying,
   timePosition,
   updatePlaybackState,
-} from '../stores/player';
-import * as mopidy from '../services/mopidy';
-import styles from './MiniPlayer.module.css';
+} from "../stores/player";
+import * as mopidy from "../services/mopidy";
+import styles from "./MiniPlayer.module.css";
+
+/** How often to sync with backend to correct drift (in seconds) */
+const BACKEND_SYNC_INTERVAL_SECONDS = 10;
+
+/** Threshold in ms - if position is below this, previous goes to previous track */
+const PREVIOUS_THRESHOLD_MS = 3000;
 
 export function MiniPlayer() {
   const track = useStore(currentTrack);
   const playing = useStore(isPlaying);
   const position = useStore(timePosition);
-  const positionInterval = useRef<number | null>(null);
+  const localUpdateInterval = useRef<number | null>(null);
+  const lastSyncTime = useRef<number>(Date.now());
+  const lastSyncPosition = useRef<number>(position);
 
-
-  // Update time position while playing
+  // Update time position while playing - derive locally, sync periodically
   useEffect(() => {
     if (playing && track) {
-      positionInterval.current = window.setInterval(async () => {
-        try {
-          const pos = await mopidy.getTimePosition();
-          updatePlaybackState({ timePosition: pos });
-        } catch {
-          // Ignore position fetch errors
+      // Reset sync reference when playback starts
+      lastSyncTime.current = Date.now();
+      lastSyncPosition.current = position;
+
+      localUpdateInterval.current = window.setInterval(async () => {
+        const now = Date.now();
+        const elapsed = now - lastSyncTime.current;
+        const secondsSinceSync = elapsed / 1000;
+
+        if (secondsSinceSync >= BACKEND_SYNC_INTERVAL_SECONDS) {
+          try {
+            const pos = await mopidy.getTimePosition();
+            updatePlaybackState({ timePosition: pos });
+            lastSyncTime.current = now;
+            lastSyncPosition.current = pos;
+          } catch {
+            // On error, continue with local derivation
+            const derivedPosition = lastSyncPosition.current + elapsed;
+            updatePlaybackState({ timePosition: derivedPosition });
+          }
+        } else {
+          // Derive position locally based on elapsed time
+          const derivedPosition = lastSyncPosition.current + elapsed;
+          updatePlaybackState({ timePosition: derivedPosition });
         }
-      }, 1000);
+      }, 100);
     }
 
     return () => {
-      if (positionInterval.current) {
-        clearInterval(positionInterval.current);
-        positionInterval.current = null;
+      if (localUpdateInterval.current) {
+        clearInterval(localUpdateInterval.current);
+        localUpdateInterval.current = null;
       }
     };
   }, [playing, track]);
@@ -46,7 +71,7 @@ export function MiniPlayer() {
         await mopidy.resume();
       }
     } catch (err) {
-      console.error('Failed to toggle playback:', err);
+      console.error("Failed to toggle playback:", err);
     }
   };
 
@@ -54,15 +79,22 @@ export function MiniPlayer() {
     try {
       await mopidy.next();
     } catch (err) {
-      console.error('Failed to skip to next:', err);
+      console.error("Failed to skip to next:", err);
     }
   };
 
   const handlePrevious = async () => {
     try {
-      await mopidy.previous();
+      if (position <= PREVIOUS_THRESHOLD_MS) {
+        await mopidy.previous();
+      } else {
+        await mopidy.seek(0);
+        updatePlaybackState({ timePosition: 0 });
+        lastSyncTime.current = Date.now();
+        lastSyncPosition.current = 0;
+      }
     } catch (err) {
-      console.error('Failed to skip to previous:', err);
+      console.error("Failed to skip to previous:", err);
     }
   };
 
@@ -72,8 +104,11 @@ export function MiniPlayer() {
     try {
       await mopidy.seek(newPosition);
       updatePlaybackState({ timePosition: newPosition });
+      // Reset sync reference after seek
+      lastSyncTime.current = Date.now();
+      lastSyncPosition.current = newPosition;
     } catch (err) {
-      console.error('Failed to seek:', err);
+      console.error("Failed to seek:", err);
     }
   };
 
@@ -84,7 +119,7 @@ export function MiniPlayer() {
       {/* Progress bar */}
       <div
         className={styles.progressBar}
-        style={{ '--progress': `${progress}%` } as React.CSSProperties}
+        style={{ "--progress": `${progress}%` }}
       >
         {track && (
           <input
@@ -105,7 +140,8 @@ export function MiniPlayer() {
             <>
               <div className={styles.trackName}>{track.name}</div>
               <div className={styles.trackArtist}>
-                {track.artists?.map((a) => a.name).join(', ') || 'Unknown Artist'}
+                {track.artists?.map((a) => a.name).join(", ") ||
+                  "Unknown Artist"}
               </div>
             </>
           ) : (
@@ -133,7 +169,7 @@ export function MiniPlayer() {
             className={`${styles.controlButton} ${styles.playButton}`}
             onClick={handlePlayPause}
             disabled={!track}
-            aria-label={playing ? 'Pause' : 'Play'}
+            aria-label={playing ? "Pause" : "Play"}
           >
             {playing ? <Pause size={24} /> : <Play size={24} />}
           </button>
@@ -153,9 +189,9 @@ export function MiniPlayer() {
 }
 
 function formatDuration(ms: number): string {
-  if (!ms) return '0:00';
+  if (!ms) return "0:00";
   const seconds = Math.floor(ms / 1000);
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
 }

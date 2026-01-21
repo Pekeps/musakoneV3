@@ -2,7 +2,9 @@
  * Authentication service for login, register, and token management
  */
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+const BACKEND_URL =
+  import.meta.env.VITE_BACKEND_URL ||
+  `http://${window.location.hostname}:3001`;
 const TOKEN_KEY = 'musakone_token';
 
 export interface User {

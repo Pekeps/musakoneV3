@@ -386,10 +386,8 @@ fn gun_receiver_loop(
   conn: Connection,
   actor_subject: Subject(MopidyMessage),
 ) -> Nil {
-  logging.log(logging.Debug, "Gun receiver: waiting for frame...")
   case gun_ffi.receive_frame(conn, 60_000) {
     Ok(frame) -> {
-      logging.log(logging.Debug, "Gun receiver: got frame!")
       process.send(actor_subject, ReceivedFrame(frame))
       case frame {
         gun_ffi.CloseFrame(_, _) -> {

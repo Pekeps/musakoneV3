@@ -98,12 +98,12 @@ fn handle_request(
   // Add CORS headers
   let with_cors = fn(resp: Response(mist.ResponseData)) {
     resp
-    |> response.prepend_header("access-control-allow-origin", "*")
-    |> response.prepend_header(
+    |> response.set_header("access-control-allow-origin", "*")
+    |> response.set_header(
       "access-control-allow-methods",
       "GET, POST, PUT, DELETE, OPTIONS",
     )
-    |> response.prepend_header(
+    |> response.set_header(
       "access-control-allow-headers",
       "content-type, authorization",
     )
@@ -209,7 +209,7 @@ fn handle_request(
       |> response.set_body(
         mist.Bytes(bytes_tree.from_string("{\"error\":\"Not found\"}")),
       )
-      |> response.prepend_header("content-type", "application/json")
+      |> response.set_header("content-type", "application/json")
       |> with_cors
     }
   }
@@ -222,7 +222,7 @@ fn get_auth_header(req: Request(mist.Connection)) -> Result(String, String) {
 
 fn error_response(message: String, status: Int) -> Response(mist.ResponseData) {
   response.new(status)
-  |> response.prepend_header("content-type", "application/json")
+  |> response.set_header("content-type", "application/json")
   |> response.set_body(
     mist.Bytes(bytes_tree.from_string("{\"error\":\"" <> message <> "\"}")),
   )
