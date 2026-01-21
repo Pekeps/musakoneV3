@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'preact/hooks';
-import { useStore } from '@nanostores/preact';
-import { Trash2, X, Play, RefreshCw } from 'lucide-preact';
-import { queue, setQueue } from '../stores/queue';
-import { currentTrack } from '../stores/player';
-import * as mopidy from '../services/mopidy';
-import styles from './QueueView.module.css';
+import { useEffect, useState } from "preact/hooks";
+import { useStore } from "@nanostores/preact";
+import { Trash2, X, RefreshCw } from "lucide-preact";
+import { queue, setQueue } from "../stores/queue";
+import { currentTrack } from "../stores/player";
+import * as mopidy from "../services/mopidy";
+import styles from "./QueueView.module.css";
 
 export function QueueView() {
   const queueTracks = useStore(queue);
@@ -22,7 +22,7 @@ export function QueueView() {
       setQueue(tracks);
       setCurrentTlid(tlid);
     } catch (err) {
-      console.error('Failed to load queue:', err);
+      console.error("Failed to load queue:", err);
     } finally {
       setLoading(false);
     }
@@ -37,7 +37,7 @@ export function QueueView() {
       await mopidy.play(tlid);
       setCurrentTlid(tlid);
     } catch (err) {
-      console.error('Failed to play track:', err);
+      console.error("Failed to play track:", err);
     }
   };
 
@@ -46,17 +46,16 @@ export function QueueView() {
       await mopidy.removeFromTracklist([tlid]);
       setQueue(queueTracks.filter((t) => t.tlid !== tlid));
     } catch (err) {
-      console.error('Failed to remove track:', err);
+      console.error("Failed to remove track:", err);
     }
   };
 
   const handleClearQueue = async () => {
     try {
       await mopidy.clearTracklist();
-      setQueue([]);
-      setCurrentTlid(null);
+      await loadQueue();
     } catch (err) {
-      console.error('Failed to clear queue:', err);
+      console.error("Failed to clear queue:", err);
     }
   };
 
@@ -65,7 +64,7 @@ export function QueueView() {
       await mopidy.shuffleTracklist();
       await loadQueue();
     } catch (err) {
-      console.error('Failed to shuffle queue:', err);
+      console.error("Failed to shuffle queue:", err);
     }
   };
 
@@ -103,7 +102,7 @@ export function QueueView() {
             disabled={loading}
             aria-label="Refresh queue"
           >
-            <RefreshCw size={16} className={loading ? styles.spinning : ''} />
+            <RefreshCw size={16} className={loading ? styles.spinning : ""} />
           </button>
           <button
             className={styles.actionBtn}
@@ -124,11 +123,12 @@ export function QueueView() {
 
       <div className={styles.list}>
         {queueTracks.map((item, index) => {
-          const isCurrentTrack = item.tlid === currentTlid || item.track.uri === current?.uri;
+          const isCurrentTrack =
+            item.tlid === currentTlid || item.track.uri === current?.uri;
           return (
             <div
               key={item.tlid}
-              className={`${styles.track} ${isCurrentTrack ? styles.current : ''}`}
+              className={`${styles.track} ${isCurrentTrack ? styles.current : ""}`}
             >
               <button
                 className={styles.playBtn}
@@ -148,7 +148,8 @@ export function QueueView() {
               <div className={styles.info}>
                 <div className={styles.name}>{item.track.name}</div>
                 <div className={styles.artist}>
-                  {item.track.artists?.map((a) => a.name).join(', ') || 'Unknown'}
+                  {item.track.artists?.map((a) => a.name).join(", ") ||
+                    "Unknown"}
                 </div>
               </div>
               <div className={styles.duration}>
@@ -170,9 +171,9 @@ export function QueueView() {
 }
 
 function formatDuration(ms: number): string {
-  if (!ms) return '--:--';
+  if (!ms) return "--:--";
   const seconds = Math.floor(ms / 1000);
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
 }

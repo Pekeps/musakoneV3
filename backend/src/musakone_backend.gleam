@@ -1,5 +1,6 @@
 import db/connection
 import envoy
+import event_bus
 import gleam/bit_array
 import gleam/bytes_tree
 import gleam/erlang/process
@@ -47,9 +48,17 @@ pub fn main() {
 
   logging.log(logging.Info, "✓ Database connected and initialized")
 
-  // Initialize shared Mopidy WebSocket connection
-  use mopidy_connection <- result.try(
-    mopidy_client.start(mopidy_url)
+  // Start the event bus (pub/sub for decoupling components)
+  use bus <- result.try(
+    event_bus.start()
+    |> result.map_error(string.inspect),
+  )
+
+  logging.log(logging.Info, "✓ Event bus started")
+
+  // Initialize Mopidy WebSocket connection (connects to bus automatically)
+  use _mopidy <- result.try(
+    mopidy_client.start(mopidy_url, bus)
     |> result.map_error(string.inspect),
   )
 
@@ -57,11 +66,7 @@ pub fn main() {
 
   // Create app state
   let state =
-    http_handlers.AppState(
-      db: db,
-      jwt_secret: jwt_secret,
-      mopidy_subject: mopidy_connection,
-    )
+    http_handlers.AppState(db: db, jwt_secret: jwt_secret, event_bus: bus)
 
   // Start Mist server
   let assert Ok(_) =
@@ -109,13 +114,14 @@ fn handle_request(
     http.Options, _ -> {
       response.new(204)
       |> response.set_body(mist.Bytes(bytes_tree.new()))
-      // |> with_cors
+      |> with_cors
     }
 
     // Health check
-    http.Get, ["api", "health"] -> http_handlers.health_check()
+    http.Get, ["api", "health"] ->
+      http_handlers.health_check()
+      |> with_cors
 
-    // |> with_cors
     // Auth endpoints
     http.Post, ["api", "auth", "login"] -> {
       case mist.read_body(req, max_body_limit: 1024 * 1024) {
@@ -191,9 +197,9 @@ fn handle_request(
       }
     }
 
-    // WebSocket endpoint
+    // WebSocket endpoint - now uses event bus
     http.Get, ["ws"] -> {
-      ws_handler.handle_websocket(req, state.mopidy_subject)
+      ws_handler.handle_websocket(req, state.event_bus)
       |> with_cors
     }
 

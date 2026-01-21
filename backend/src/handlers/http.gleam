@@ -16,13 +16,13 @@ import gleam/time/timestamp
 import logging
 import mist.{type ResponseData}
 import sqlight
-import websocket/mopidy_client.{type MopidyMessage}
+import event_bus.{type BusMessage}
 
 pub type AppState {
   AppState(
     db: sqlight.Connection,
     jwt_secret: String,
-    mopidy_subject: Subject(MopidyMessage),
+    event_bus: Subject(BusMessage),
   )
 }
 
