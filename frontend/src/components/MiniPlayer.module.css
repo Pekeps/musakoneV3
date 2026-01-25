@@ -86,7 +86,7 @@
   font-size: var(--font-size-base);
   color: var(--fg-primary);
   white-space: nowrap;
-  overflow:scroll;
+  overflow: hidden;
   text-overflow: ellipsis;
 }
 
