@@ -1,11 +1,15 @@
 import { render } from 'preact';
 import { App } from './App';
+import { getConfig } from './services/config';
 import './styles/index.css';
 
-const appElement = document.getElementById('app');
-if (appElement) {
-  render(<App />, appElement);
-}
+// Initialize config before rendering
+getConfig().then(() => {
+  const appElement = document.getElementById('app');
+  if (appElement) {
+    render(<App />, appElement);
+  }
+});
 
 // Register service worker for PWA
 if ('serviceWorker' in navigator) {

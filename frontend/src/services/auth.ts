@@ -2,10 +2,13 @@
  * Authentication service for login, register, and token management
  */
 
-const BACKEND_URL =
-  import.meta.env.VITE_BACKEND_URL ||
-  `http://${window.location.hostname}:3001`;
+import { getConfigSync } from './config';
+
 const TOKEN_KEY = 'musakone_token';
+
+function getBackendUrl(): string {
+  return getConfigSync().backendHttpUrl;
+}
 
 export interface User {
   id: number;
@@ -28,7 +31,7 @@ export interface RegisterResponse {
  * Register a new user account
  */
 export async function register(username: string, password: string): Promise<RegisterResponse> {
-  const response = await fetch(`${BACKEND_URL}/api/auth/register`, {
+  const response = await fetch(`${getBackendUrl()}/api/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password })
@@ -46,7 +49,7 @@ export async function register(username: string, password: string): Promise<Regi
  * Login with username and password
  */
 export async function login(username: string, password: string): Promise<LoginResponse> {
-  const response = await fetch(`${BACKEND_URL}/api/auth/login`, {
+  const response = await fetch(`${getBackendUrl()}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password })
@@ -95,7 +98,7 @@ export async function getCurrentUser(): Promise<User> {
     throw new Error('Not authenticated');
   }
 
-  const response = await fetch(`${BACKEND_URL}/api/auth/me`, {
+  const response = await fetch(`${getBackendUrl()}/api/auth/me`, {
     headers: {
       'Authorization': `Bearer ${token}`
     }

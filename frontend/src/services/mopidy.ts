@@ -8,10 +8,7 @@ import { updatePlaybackState } from '../stores/player';
 import { setQueue } from '../stores/queue';
 import { setConnectionStatus } from '../stores/connection';
 import { getToken } from './auth';
-
-const BACKEND_WS_URL =
-  import.meta.env.VITE_BACKEND_WS_URL ||
-  `ws://${window.location.hostname}:3001/ws`;
+import { getConfigSync } from './config';
 
 interface JsonRpcRequest {
   jsonrpc: '2.0';
@@ -81,8 +78,8 @@ class MopidyWebSocket {
   private connected = false;
   private connectionPromise: Promise<void> | null = null;
 
-  constructor(url: string = BACKEND_WS_URL) {
-    this.url = url;
+  constructor(url?: string) {
+    this.url = url || getConfigSync().backendWsUrl;
   }
 
   connect(): Promise<void> {

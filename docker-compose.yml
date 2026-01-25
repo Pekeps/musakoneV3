@@ -1,5 +1,10 @@
 services:
+  # Mopidy service - optional, use profile "mopidy" to include
+  # Run with: docker-compose --profile mopidy up
+  # Or set COMPOSE_PROFILES=mopidy in .env
   mopidy:
+    profiles:
+      - mopidy
     build:
       context: ./mopidy
       dockerfile: Dockerfile
@@ -36,10 +41,7 @@ services:
       - backend-data:/app/data
     environment:
       - JWT_SECRET=${JWT_SECRET:-change-this-secret-in-production}
-      - MOPIDY_URL=ws://mopidy:6680/mopidy/ws
-    depends_on:
-      mopidy:
-        condition: service_healthy
+      - MOPIDY_URL=${MOPIDY_URL:-ws://mopidy:6680/mopidy/ws}
     restart: unless-stopped
     networks:
       - musakone
