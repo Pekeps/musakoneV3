@@ -10,10 +10,11 @@
   align-items: center;
   gap: var(--spacing-sm);
   padding: var(--spacing-md);
-  border-bottom: 1px solid var(--border-primary);
+  border-bottom: var(--border-width) solid var(--border-primary);
   flex-shrink: 0;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  background: var(--bg-secondary);
 }
 
 .backBtn {
@@ -22,17 +23,28 @@
   justify-content: center;
   width: var(--touch-target-min);
   height: var(--touch-target-min);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-primary);
-  color: var(--fg-secondary);
+  background: var(--bg-tertiary);
+  border: 4px solid var(--border-primary);
+  border-radius: 0;
+  color: var(--fg-primary);
   cursor: pointer;
   flex-shrink: 0;
   transition: all var(--transition-fast);
 }
 
-.backBtn:hover {
-  color: var(--accent-primary);
+.backBtn:hover:not(:disabled) {
+  background: var(--accent-dim);
   border-color: var(--accent-primary);
+}
+
+.backBtn:active:not(:disabled) {
+  transform: translateY(2px);
+  border-width: 2px 4px 4px 2px;
+}
+
+.backBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .breadcrumbList {
@@ -51,8 +63,9 @@
   background: none;
   border: none;
   color: var(--fg-secondary);
-  font-family: var(--font-mono);
+  font-family: var(--font-family);
   font-size: var(--font-size-sm);
+  letter-spacing: var(--letter-spacing);
   cursor: pointer;
   white-space: nowrap;
   transition: color var(--transition-fast);
@@ -64,7 +77,6 @@
 
 .breadcrumb.active {
   color: var(--accent-primary);
-  font-weight: 500;
 }
 
 .breadcrumb:disabled {
@@ -80,22 +92,97 @@
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  padding-bottom: var(--total-bottom-offset);
+}
+
+@media (min-width: 768px) {
+  .list {
+    padding-bottom: 0;
+  }
+}
+
+.listLoading {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.trackWrapper {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+}
+
+.swipeHint {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--spacing-md);
+  font-size: var(--font-size-sm);
+  letter-spacing: var(--letter-spacing);
+  text-transform: uppercase;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.swipeHintLeft {
+  right: 0;
+  background: var(--accent-primary);
+  color: var(--bg-primary);
+}
+
+.swipeHintRight {
+  left: 0;
+  background: var(--accent-secondary);
+  color: var(--bg-primary);
+}
+
+.swipeNext .swipeHintLeft,
+.swipeNextActive .swipeHintLeft {
+  opacity: 1;
+}
+
+.swipeAdd .swipeHintRight,
+.swipeAddActive .swipeHintRight {
+  opacity: 1;
+}
+
+.swipeNextActive .swipeHintLeft {
+  background: var(--accent-secondary);
+}
+
+.swipeAddActive .swipeHintRight {
+  background: var(--accent-secondary);
 }
 
 .item {
   display: flex;
   align-items: center;
-  gap: var(--spacing-md);
-  padding: var(--spacing-md);
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
   background: var(--bg-primary);
-  border-bottom: 1px solid var(--border-secondary);
-  min-height: var(--touch-target-min);
+  border-bottom: 2px solid var(--border-secondary);
+  min-height: 48px;
+  width: 100%;
   cursor: pointer;
-  transition: background var(--transition-fast);
+  transition: transform var(--transition-fast), background var(--transition-fast);
+  position: relative;
+  z-index: 1;
 }
 
 .item:active {
-  background: var(--bg-secondary);
+  background: var(--bg-tertiary);
+  transform: translateY(1px);
+}
+
+.item.itemAnimating {
+  transition: transform 0.2s ease-in-out;
+}
+
+.itemDisabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .item.track {
@@ -106,8 +193,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 24px;
+  height: 24px;
   color: var(--fg-tertiary);
   flex-shrink: 0;
 }
@@ -117,11 +204,11 @@
 }
 
 .item.artist .icon {
-  color: #9b59b6;
+  color: var(--fg-secondary);
 }
 
 .item.album .icon {
-  color: #3498db;
+  color: var(--accent-secondary);
 }
 
 .item.track .icon {
@@ -129,7 +216,7 @@
 }
 
 .item.playlist .icon {
-  color: #e67e22;
+  color: var(--accent-dim);
 }
 
 .info {
@@ -145,12 +232,14 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: var(--font-size-base);
+  font-size: var(--font-size-md);
+  letter-spacing: var(--letter-spacing);
 }
 
 .type {
   color: var(--fg-tertiary);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
+  letter-spacing: var(--letter-spacing);
   text-transform: capitalize;
 }
 
@@ -158,23 +247,25 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: var(--touch-target-min);
-  height: var(--touch-target-min);
-  background: none;
-  border: 1px solid var(--border-primary);
-  color: var(--fg-tertiary);
+  width: 36px;
+  height: 36px;
+  background: var(--bg-tertiary);
+  border: 4px solid var(--border-primary);
+  border-radius: 0;
+  color: var(--fg-primary);
   cursor: pointer;
   flex-shrink: 0;
   transition: all var(--transition-fast);
 }
 
 .addBtn:hover {
-  color: var(--accent-primary);
+  background: var(--accent-dim);
   border-color: var(--accent-primary);
 }
 
 .addBtn:active {
-  background: var(--bg-secondary);
+  transform: translateY(2px);
+  border-width: 2px 4px 4px 2px;
 }
 
 .chevron {
@@ -216,14 +307,18 @@
 
 .retryBtn {
   padding: var(--spacing-sm) var(--spacing-md);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-primary);
-  color: var(--fg-secondary);
-  font-family: var(--font-mono);
+  background: var(--bg-tertiary);
+  border: 4px solid var(--border-primary);
+  border-radius: 0;
+  color: var(--fg-primary);
+  font-family: var(--font-family);
   font-size: var(--font-size-sm);
+  letter-spacing: var(--letter-spacing);
   cursor: pointer;
   transition: all var(--transition-fast);
+  text-transform: uppercase;
 }
+
 
 .retryBtn:hover {
   color: var(--accent-primary);

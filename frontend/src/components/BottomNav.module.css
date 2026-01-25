@@ -12,6 +12,18 @@
   z-index: 100;
 }
 
+/* Extend background below viewport to prevent content showing on overscroll */
+.bottomNav::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 200px;
+  background: var(--bg-secondary);
+  z-index: -1;
+}
+
 .navItem {
   flex: 1;
   display: flex;
@@ -41,19 +53,4 @@
 .navItem svg {
   width: 24px;
   height: 24px;
-}
-
-@media (min-width: 768px) {
-  .bottomNav {
-    position: static;
-    height: auto;
-    border-top: none;
-    border-bottom: 1px solid var(--border-primary);
-    padding: var(--spacing-sm);
-  }
-  
-  .navItem {
-    flex-direction: row;
-    gap: var(--spacing-sm);
-  }
 }

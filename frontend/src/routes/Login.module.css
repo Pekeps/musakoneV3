@@ -73,9 +73,9 @@
 .error {
   padding: 1rem;
   font-size: 0.875rem;
-  color: #ff4444;
+  color: var(--error);
   background: rgba(255, 68, 68, 0.1);
-  border: 1px solid #ff4444;
+  border: 1px solid var(--error);
   border-radius: 2px;
   text-align: center;
 }

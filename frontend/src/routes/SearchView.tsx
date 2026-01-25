@@ -1,6 +1,7 @@
-import { useState, useCallback } from 'preact/hooks';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'preact/hooks';
 import { useStore } from '@nanostores/preact';
-import { Search, Plus, Music, User, Disc, X } from 'lucide-preact';
+import { useLocation } from 'wouter';
+import { Search, Plus, Music, User, Disc, X, ChevronRight, Check } from 'lucide-preact';
 import {
   searchQuery,
   searchTracks,
@@ -17,6 +18,9 @@ import {
   clearSearch,
 } from '../stores/search';
 import * as mopidy from '../services/mopidy';
+import { resetLibrary, navigateTo } from '../stores/library';
+import { queue } from '../stores/queue';
+import { connectionStatus } from '../stores/connection';
 import type { Track, Artist, Album } from '../types';
 import styles from './SearchView.module.css';
 
@@ -28,18 +32,42 @@ export function SearchView() {
   const loading = useStore(searchLoading);
   const error = useStore(searchError);
   const tab = useStore(searchTab);
+  const queueTracks = useStore(queue);
+  const connStatus = useStore(connectionStatus);
   const [inputValue, setInputValue] = useState(query);
+  const [, setLocation] = useLocation();
+  const hasInitialized = useRef(false);
+  const pendingSearch = useRef<string | null>(null);
+
+  // Update URL when search query or tab changes
+  const updateUrl = useCallback((searchQuery: string, currentTab: string) => {
+    const params = new URLSearchParams();
+    if (searchQuery) {
+      params.set('q', searchQuery);
+      params.set('tab', currentTab);
+    }
+    const search = params.toString();
+    const newUrl = search ? `/search?${search}` : '/search';
+    window.history.replaceState(null, '', newUrl);
+  }, []);
+
+  // Create a set of URIs already in queue for quick lookup
+  const queuedUris = useMemo(() => {
+    return new Set(queueTracks.map((t) => t.track.uri));
+  }, [queueTracks]);
 
   const handleSearch = useCallback(async (searchValue: string) => {
     const trimmed = searchValue.trim();
     if (!trimmed) {
       clearSearch();
+      updateUrl('', tab);
       return;
     }
 
     setSearchQuery(trimmed);
     setSearchLoading(true);
     setSearchError(null);
+    updateUrl(trimmed, tab);
 
     try {
       const results = await mopidy.search(trimmed);
@@ -50,7 +78,36 @@ export function SearchView() {
     } finally {
       setSearchLoading(false);
     }
+  }, [tab, updateUrl]);
+
+  // Read search params from URL on mount
+  useEffect(() => {
+    if (hasInitialized.current) return;
+    hasInitialized.current = true;
+
+    const params = new URLSearchParams(window.location.search);
+    const urlQuery = params.get('q');
+    const urlTab = params.get('tab') as 'tracks' | 'artists' | 'albums' | null;
+
+    if (urlTab && ['tracks', 'artists', 'albums'].includes(urlTab)) {
+      setSearchTab(urlTab);
+    }
+
+    if (urlQuery) {
+      setInputValue(urlQuery);
+      // Store the query to search once connected
+      pendingSearch.current = urlQuery;
+    }
   }, []);
+
+  // Trigger pending search once connected
+  useEffect(() => {
+    if (connStatus === 'connected' && pendingSearch.current) {
+      const queryToSearch = pendingSearch.current;
+      pendingSearch.current = null;
+      handleSearch(queryToSearch);
+    }
+  }, [connStatus, handleSearch]);
 
   const handleSubmit = (e: Event) => {
     e.preventDefault();
@@ -60,6 +117,7 @@ export function SearchView() {
   const handleClear = () => {
     setInputValue('');
     clearSearch();
+    updateUrl('', tab);
   };
 
   const handleAddTrack = async (track: Track) => {
@@ -67,6 +125,25 @@ export function SearchView() {
       await mopidy.addToTracklist([track.uri]);
     } catch (err) {
       console.error('Failed to add track:', err);
+    }
+  };
+
+  const handleAddTrackNext = async (track: Track) => {
+    try {
+      const queue = await mopidy.getTracklist();
+      const currentTlid = await mopidy.getCurrentTlid();
+      let insertPosition = 0;
+
+      if (currentTlid) {
+        const currentIndex = queue.findIndex((t) => t.tlid === currentTlid);
+        if (currentIndex !== -1) {
+          insertPosition = currentIndex + 1;
+        }
+      }
+
+      await mopidy.addToTracklist([track.uri], insertPosition);
+    } catch (err) {
+      console.error('Failed to add track next:', err);
     }
   };
 
@@ -94,6 +171,18 @@ export function SearchView() {
     }
   };
 
+  const handleArtistClick = (artist: Artist) => {
+    resetLibrary();
+    navigateTo(artist.uri, artist.name);
+    setLocation('/library');
+  };
+
+  const handleAlbumClick = (album: Album) => {
+    resetLibrary();
+    navigateTo(album.uri, album.name);
+    setLocation('/library');
+  };
+
   const hasResults = tracks.length > 0 || artists.length > 0 || albums.length > 0;
 
   return (
@@ -111,7 +200,6 @@ export function SearchView() {
             autoComplete="off"
             autoCorrect="off"
             autoCapitalize="off"
-            spellCheck={false}
           />
           {inputValue && (
             <button
@@ -134,21 +222,30 @@ export function SearchView() {
         <div className={styles.tabs}>
           <button
             className={`${styles.tab} ${tab === 'tracks' ? styles.active : ''}`}
-            onClick={() => setSearchTab('tracks')}
+            onClick={() => {
+              setSearchTab('tracks');
+              updateUrl(query, 'tracks');
+            }}
           >
             <Music size={16} />
             Tracks ({tracks.length})
           </button>
           <button
             className={`${styles.tab} ${tab === 'artists' ? styles.active : ''}`}
-            onClick={() => setSearchTab('artists')}
+            onClick={() => {
+              setSearchTab('artists');
+              updateUrl(query, 'artists');
+            }}
           >
             <User size={16} />
             Artists ({artists.length})
           </button>
           <button
             className={`${styles.tab} ${tab === 'albums' ? styles.active : ''}`}
-            onClick={() => setSearchTab('albums')}
+            onClick={() => {
+              setSearchTab('albums');
+              updateUrl(query, 'albums');
+            }}
           >
             <Disc size={16} />
             Albums ({albums.length})
@@ -178,13 +275,13 @@ export function SearchView() {
       ) : (
         <div className={styles.results}>
           {tab === 'tracks' && (
-            <TrackList tracks={tracks} onAdd={handleAddTrack} />
+            <TrackList tracks={tracks} onAdd={handleAddTrack} onAddNext={handleAddTrackNext} queuedUris={queuedUris} />
           )}
           {tab === 'artists' && (
-            <ArtistList artists={artists} onAdd={handleAddArtist} />
+            <ArtistList artists={artists} onAdd={handleAddArtist} onClick={handleArtistClick} />
           )}
           {tab === 'albums' && (
-            <AlbumList albums={albums} onAdd={handleAddAlbum} />
+            <AlbumList albums={albums} onAdd={handleAddAlbum} onClick={handleAlbumClick} />
           )}
         </div>
       )}
@@ -195,35 +292,136 @@ export function SearchView() {
 interface TrackListProps {
   tracks: Track[];
   onAdd: (track: Track) => void;
+  onAddNext: (track: Track) => void;
+  queuedUris: Set<string>;
 }
 
-function TrackList({ tracks, onAdd }: TrackListProps) {
+function TrackList({ tracks, onAdd, onAddNext, queuedUris }: TrackListProps) {
   return (
     <div className={styles.list}>
       {tracks.map((track) => (
-        <div key={track.uri} className={styles.item}>
-          <div className={styles.itemIcon}>
-            <Music size={20} />
+        <SwipeableTrackItem
+          key={track.uri}
+          track={track}
+          isQueued={queuedUris.has(track.uri)}
+          onAdd={onAdd}
+          onAddNext={onAddNext}
+        />
+      ))}
+    </div>
+  );
+}
+
+interface SwipeableTrackItemProps {
+  track: Track;
+  isQueued: boolean;
+  onAdd: (track: Track) => void;
+  onAddNext: (track: Track) => void;
+}
+
+function SwipeableTrackItem({ track, isQueued, onAdd, onAddNext }: SwipeableTrackItemProps) {
+  const [swipeX, setSwipeX] = useState(0);
+  const [swiping, setSwiping] = useState(false);
+  const [animating, setAnimating] = useState<'left' | 'right' | null>(null);
+  const startX = useRef(0);
+  const threshold = 160;
+
+  const handleTouchStart = (e: TouchEvent) => {
+    if (isQueued || animating) return;
+    startX.current = e.touches[0]?.clientX || 0;
+    setSwiping(true);
+  };
+
+  const handleTouchMove = (e: TouchEvent) => {
+    if (!swiping || isQueued || animating) return;
+    const diff = (e.touches[0]?.clientX || 0) - startX.current;
+    setSwipeX(Math.max(-150, Math.min(150, diff)));
+  };
+
+  const handleTouchEnd = () => {
+    if (!swiping || isQueued || animating) return;
+    setSwiping(false);
+
+    if (swipeX < -threshold) {
+      // Animate off to the left, then add next
+      setAnimating('left');
+      setTimeout(() => {
+        onAddNext(track);
+        setTimeout(() => {
+          setSwipeX(0);
+          setAnimating(null);
+        }, 150);
+      }, 200);
+    } else if (swipeX > threshold) {
+      // Animate off to the right, then add to end
+      setAnimating('right');
+      setTimeout(() => {
+        onAdd(track);
+        setTimeout(() => {
+          setSwipeX(0);
+          setAnimating(null);
+        }, 150);
+      }, 200);
+    } else {
+      setSwipeX(0);
+    }
+  };
+
+  const getSwipeIndicator = () => {
+    if (animating === 'left') return styles.swipeNextActive;
+    if (animating === 'right') return styles.swipeAddActive;
+    if (swipeX < -threshold) return styles.swipeNextActive;
+    if (swipeX > threshold) return styles.swipeAddActive;
+    if (swipeX < -20) return styles.swipeNext;
+    if (swipeX > 20) return styles.swipeAdd;
+    return '';
+  };
+
+  const getTransform = () => {
+    if (animating === 'left') return 'translateX(-100%)';
+    if (animating === 'right') return 'translateX(100%)';
+    return `translateX(${swipeX}px)`;
+  };
+
+  return (
+    <div className={`${styles.trackWrapper} ${getSwipeIndicator()}`}>
+      <div className={styles.swipeHint + ' ' + styles.swipeHintLeft}>+ Queue Next</div>
+      <div className={styles.swipeHint + ' ' + styles.swipeHintRight}>+ Queue to End</div>
+      <div
+        className={`${styles.item} ${animating ? styles.itemAnimating : ''}`}
+        style={{ transform: getTransform() }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        <div className={styles.itemIcon}>
+          <Music size={20} />
+        </div>
+        <div className={styles.itemInfo}>
+          <div className={styles.itemName}>{track.name}</div>
+          <div className={styles.itemMeta}>
+            {track.artists?.map((a) => a.name).join(', ') || 'Unknown Artist'}
+            {track.album && ` • ${track.album.name}`}
           </div>
-          <div className={styles.itemInfo}>
-            <div className={styles.itemName}>{track.name}</div>
-            <div className={styles.itemMeta}>
-              {track.artists?.map((a) => a.name).join(', ') || 'Unknown Artist'}
-              {track.album && ` • ${track.album.name}`}
-            </div>
+        </div>
+        <div className={styles.itemDuration}>
+          {formatDuration(track.duration)}
+        </div>
+        {isQueued ? (
+          <div className={styles.inQueue} title="Already in queue">
+            <Check size={18} />
           </div>
-          <div className={styles.itemDuration}>
-            {formatDuration(track.duration)}
-          </div>
+        ) : (
           <button
             className={styles.addBtn}
             onClick={() => onAdd(track)}
             aria-label={`Add ${track.name} to queue`}
+            title="Add to queue"
           >
             <Plus size={18} />
           </button>
-        </div>
-      ))}
+        )}
+      </div>
     </div>
   );
 }
@@ -231,13 +429,23 @@ function TrackList({ tracks, onAdd }: TrackListProps) {
 interface ArtistListProps {
   artists: Artist[];
   onAdd: (artist: Artist) => void;
+  onClick: (artist: Artist) => void;
 }
 
-function ArtistList({ artists, onAdd }: ArtistListProps) {
+function ArtistList({ artists, onAdd, onClick }: ArtistListProps) {
+  const handleAdd = (artist: Artist, e: Event) => {
+    e.stopPropagation();
+    onAdd(artist);
+  };
+
   return (
     <div className={styles.list}>
       {artists.map((artist) => (
-        <div key={artist.uri} className={styles.item}>
+        <div
+          key={artist.uri}
+          className={`${styles.item} ${styles.clickable}`}
+          onClick={() => onClick(artist)}
+        >
           <div className={`${styles.itemIcon} ${styles.artistIcon}`}>
             <User size={20} />
           </div>
@@ -247,11 +455,12 @@ function ArtistList({ artists, onAdd }: ArtistListProps) {
           </div>
           <button
             className={styles.addBtn}
-            onClick={() => onAdd(artist)}
+            onClick={(e) => handleAdd(artist, e)}
             aria-label={`Add all ${artist.name} tracks to queue`}
           >
             <Plus size={18} />
           </button>
+          <ChevronRight size={18} className={styles.chevron} />
         </div>
       ))}
     </div>
@@ -261,13 +470,23 @@ function ArtistList({ artists, onAdd }: ArtistListProps) {
 interface AlbumListProps {
   albums: Album[];
   onAdd: (album: Album) => void;
+  onClick: (album: Album) => void;
 }
 
-function AlbumList({ albums, onAdd }: AlbumListProps) {
+function AlbumList({ albums, onAdd, onClick }: AlbumListProps) {
+  const handleAdd = (album: Album, e: Event) => {
+    e.stopPropagation();
+    onAdd(album);
+  };
+
   return (
     <div className={styles.list}>
       {albums.map((album) => (
-        <div key={album.uri} className={styles.item}>
+        <div
+          key={album.uri}
+          className={`${styles.item} ${styles.clickable}`}
+          onClick={() => onClick(album)}
+        >
           <div className={`${styles.itemIcon} ${styles.albumIcon}`}>
             <Disc size={20} />
           </div>
@@ -279,11 +498,12 @@ function AlbumList({ albums, onAdd }: AlbumListProps) {
           </div>
           <button
             className={styles.addBtn}
-            onClick={() => onAdd(album)}
+            onClick={(e) => handleAdd(album, e)}
             aria-label={`Add ${album.name} to queue`}
           >
             <Plus size={18} />
           </button>
+          <ChevronRight size={18} className={styles.chevron} />
         </div>
       ))}
     </div>

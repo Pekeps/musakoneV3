@@ -1,18 +1,19 @@
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useState, useRef } from "preact/hooks";
 import { useStore } from "@nanostores/preact";
-import { Trash2, RefreshCw, Play } from "lucide-preact";
-import { queue, setQueue } from "../stores/queue";
+import { Trash2, Play, RefreshCw } from "lucide-preact";
+import { queue, setQueue, scrollToCurrentTrack } from "../stores/queue";
 import { currentTrack } from "../stores/player";
-import { PlaybackFlags } from "../components/PlaybackFlags";
 import * as mopidy from "../services/mopidy";
 import styles from "./QueueView.module.css";
 
 export function QueueView() {
   const queueTracks = useStore(queue);
   const current = useStore(currentTrack);
+  const scrollTrigger = useStore(scrollToCurrentTrack);
   const [loading, setLoading] = useState(false);
   const [currentTlid, setCurrentTlid] = useState<number | null>(null);
   const [selectedTlid, setSelectedTlid] = useState<number | null>(null);
+  const currentTrackRef = useRef<HTMLDivElement>(null);
 
   const loadQueue = async () => {
     setLoading(true);
@@ -33,6 +34,31 @@ export function QueueView() {
   useEffect(() => {
     loadQueue();
   }, []);
+
+  // Update currentTlid when track changes
+  useEffect(() => {
+    const updateCurrentTlid = async () => {
+      if (current) {
+        try {
+          const tlid = await mopidy.getCurrentTlid();
+          setCurrentTlid(tlid);
+        } catch (err) {
+          console.error("Failed to get current tlid:", err);
+        }
+      }
+    };
+    updateCurrentTlid();
+  }, [current]);
+
+  // Scroll to current track when triggered
+  useEffect(() => {
+    if (scrollTrigger > 0 && currentTrackRef.current) {
+      currentTrackRef.current.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'center' 
+      });
+    }
+  }, [scrollTrigger]);
 
   // Close overlay when clicking anywhere
   useEffect(() => {
@@ -115,37 +141,6 @@ export function QueueView() {
 
   return (
     <div className={styles.container}>
-      <div className={styles.header}>
-        <div className={styles.titleRow}>
-          <h2 className={styles.title}>Queue ({queueTracks.length})</h2>
-          <PlaybackFlags />
-        </div>
-        <div className={styles.actions}>
-          <button
-            className={styles.actionBtn}
-            onClick={loadQueue}
-            disabled={loading}
-            aria-label="Refresh queue"
-          >
-            <RefreshCw size={16} className={loading ? styles.spinning : ""} />
-          </button>
-          {/* <button */}
-          {/*   className={styles.actionBtn} */}
-          {/*   onClick={handleShuffle} */}
-          {/*   aria-label="Shuffle queue" */}
-          {/* > */}
-          {/*   Shuffle */}
-          {/* </button> */}
-          <button
-            className={`${styles.actionBtn} ${styles.clearBtn}`}
-            onClick={handleClearQueue}
-            aria-label="Clear queue"
-          >
-            <Trash2 size={16} />
-          </button>
-        </div>
-      </div>
-
       <div className={styles.list}>
         {queueTracks.map((item, index) => {
           const isCurrentTrack =
@@ -154,6 +149,7 @@ export function QueueView() {
           return (
             <div
               key={item.tlid}
+              ref={isCurrentTrack ? currentTrackRef : null}
               className={`${styles.track} ${isCurrentTrack ? styles.current : ""}`}
               onDblClick={() => handleTrackDoubleClick(item.tlid)}
             >

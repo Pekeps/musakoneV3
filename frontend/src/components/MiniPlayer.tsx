@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "preact/hooks";
 import { useStore } from "@nanostores/preact";
+import { useLocation } from "wouter";
 import { Play, Pause, SkipForward, SkipBack } from "lucide-preact";
 import {
   currentTrack,
@@ -7,6 +8,7 @@ import {
   timePosition,
   updatePlaybackState,
 } from "../stores/player";
+import { triggerScrollToCurrent } from "../stores/queue";
 import * as mopidy from "../services/mopidy";
 import styles from "./MiniPlayer.module.css";
 
@@ -20,6 +22,7 @@ export function MiniPlayer() {
   const track = useStore(currentTrack);
   const playing = useStore(isPlaying);
   const position = useStore(timePosition);
+  const [location, setLocation] = useLocation();
   const localUpdateInterval = useRef<number | null>(null);
   const lastSyncTime = useRef<number>(Date.now());
   const lastSyncPosition = useRef<number>(position);
@@ -114,6 +117,14 @@ export function MiniPlayer() {
 
   const progress = track?.duration ? (position / track.duration) * 100 : 0;
 
+  const handleTrackClick = () => {
+    if (!track) return;
+    // Wait a bit for navigation and render, then scroll
+    setTimeout(() => {
+      triggerScrollToCurrent();
+    }, 100);
+  };
+
   return (
     <div className={styles.miniPlayer}>
       {/* Progress bar */}
@@ -135,7 +146,10 @@ export function MiniPlayer() {
       </div>
 
       <div className={styles.content}>
-        <div className={styles.trackInfo}>
+        <div 
+          className={`${styles.trackInfo} ${track ? styles.clickable : ''}`}
+          onClick={handleTrackClick}
+        >
           {track ? (
             <>
               <div className={styles.trackName}>{track.name}</div>
@@ -171,7 +185,7 @@ export function MiniPlayer() {
             disabled={!track}
             aria-label={playing ? "Pause" : "Play"}
           >
-            {playing ? <Pause size={24} /> : <Play size={24} />}
+            {playing ? <Pause size={20} /> : <Play size={20} />}
           </button>
 
           <button

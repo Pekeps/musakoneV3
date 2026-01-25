@@ -81,6 +81,14 @@
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  /* Account for fixed MiniPlayer + BottomNav on mobile */
+  padding-bottom: var(--total-bottom-offset);
+}
+
+@media (min-width: 768px) {
+  .list {
+    padding-bottom: 0;
+  }
 }
 
 .track {
@@ -185,7 +193,6 @@
 .duration {
   color: var(--fg-tertiary);
   font-size: var(--font-size-sm);
-  min-width: 48px;
   text-align: right;
   flex-shrink: 0;
 }
@@ -265,7 +272,6 @@
   background: var(--bg-tertiary);
   color: var(--accent-primary);
 }
-
 .overlayBtn:active {
   background: var(--bg-primary);
 }

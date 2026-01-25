@@ -1,21 +1,33 @@
 :root {
-  /* Colors - Terminal Theme */
-  --bg-primary: #0a0a0a;
-  --bg-secondary: #141414;
-  --bg-tertiary: #1e1e1e;
-  --fg-primary: #e0e0e0;
-  --fg-secondary: #a0a0a0;
-  --fg-tertiary: #808080;
-  --accent-primary: #00ff88;
-  --accent-secondary: #00ccff;
-  --border-primary: #303030;
-  --border-secondary: #202020;
+  /* Colors - ncmpcpp Retro Console Theme (Red/Black) */
+  --bg-primary: #000000;
+  --bg-secondary: #0a0a0a;
+  --bg-tertiary: #141414;
+  --fg-primary: #ffffff;
+  --fg-secondary: #b0b0b0;
+  --fg-tertiary: #707070;
+  --accent-primary: #cc0000;
+  --accent-secondary: #ff3333;
+  --accent-dim: #880000;
+  --border-primary: #333333;
+  --border-secondary: #1a1a1a;
   --error: #ff4444;
+  --warning: #ffaa00;
+  --success: #00cc44;
 
   /* Typography */
-  --font-mono: "JetBrains Mono", "Fira Code", "Courier New", monospace;
-  --font-size-base: 14px;
-  --line-height: 1.6;
+  /* 
+   * TO CHANGE FONT: Update --font-family below with any Google Font name from index.html
+   * Examples:
+   *   --font-family: "VT323", monospace;
+   *   --font-family: "IBM Plex Mono", monospace;
+   *   --font-family: "JetBrains Mono", monospace;
+   *   --font-family: "Fira Code", monospace;
+   * Don't forget to add the font link in index.html first!
+   */
+  --font-family: "VT323", monospace;
+  --font-size-base: 16px;
+  --line-height: 1rem;
 
   /* Spacing */
   --spacing-xs: 0.25rem;
@@ -25,12 +37,12 @@
   --spacing-xl: 2rem;
   
   /* Touch Targets - Mobile Priority */
-  --touch-target-min: 56px;
-  --touch-target-desktop: 44px;
+  --touch-target-min: 48px;
+  --touch-target-desktop: 32px;
   
   /* Layout */
-  --bottom-nav-height: 64px;
-  --mini-player-height: 72px;
+  --bottom-nav-height: 48px;
+  --mini-player-height: 40px;
   
   /* Transitions */
   --transition-fast: 150ms ease;
@@ -47,7 +59,7 @@ html {
 }
 
 body {
-  font-family: var(--font-mono);
+  font-family: var(--font-family);
   line-height: var(--line-height);
   color: var(--fg-primary);
   background: var(--bg-primary);
@@ -57,11 +69,18 @@ body {
 
 #app {
   min-height: 100vh;
+  font-family: var(--font-family);
 }
 
 button {
-  font-family: inherit;
+  font-family: var(--font-family);
   cursor: pointer;
+}
+
+input,
+textarea,
+select {
+  font-family: var(--font-family);
 }
 
 a {

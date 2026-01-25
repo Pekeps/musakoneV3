@@ -10,6 +10,18 @@
   z-index: 99;
 }
 
+/* Extend background below viewport to prevent content showing on overscroll */
+.miniPlayer::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 200px;
+  background: var(--bg-primary);
+  z-index: -1;
+}
+
 .progressBar {
   position: relative;
   height: 4px;
@@ -47,9 +59,9 @@
 .content {
   display: flex;
   align-items: center;
-  padding: var(--spacing-sm) var(--spacing-md);
-  gap: var(--spacing-md);
-  min-height: calc(var(--mini-player-height) - 4px);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  gap: var(--spacing-xs);
+  min-height: var(--mini-player-content-height);
 }
 
 .trackInfo {
@@ -60,11 +72,21 @@
   gap: 0.125rem;
 }
 
+.trackInfo.clickable {
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.trackInfo.clickable:active {
+  opacity: 0.7;
+}
+
 .trackName {
   font-size: var(--font-size-base);
   color: var(--fg-primary);
   white-space: nowrap;
-  overflow: hidden;
+  overflow:scroll;
   text-overflow: ellipsis;
 }
 
@@ -141,10 +163,4 @@
   background: var(--accent-primary);
 }
 
-@media (min-width: 768px) {
-  .miniPlayer {
-    position: static;
-    border-top: none;
-    border-bottom: 1px solid var(--border-primary);
-  }
-}
+

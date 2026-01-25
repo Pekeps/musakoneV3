@@ -16,7 +16,7 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const status = useStore(connectionStatus);
   const user = useStore(currentUser);
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
 
   const getStatusLabel = () => {
     switch (status) {
@@ -39,7 +39,7 @@ export function Layout({ children }: LayoutProps) {
   };
 
   return (
-    <>
+    <div className={styles.container}>
       <header className={styles.header}>
         <h1 className={styles.title}>MusakoneV3</h1>
         <div className={styles.status}>
@@ -57,8 +57,8 @@ export function Layout({ children }: LayoutProps) {
         {children}
       </main>
 
-      <MiniPlayer />
+      {location === '/' && <MiniPlayer />}
       <BottomNav />
-    </>
+    </div>
   );
 }
