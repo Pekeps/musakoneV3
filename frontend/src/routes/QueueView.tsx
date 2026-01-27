@@ -1,6 +1,7 @@
 import { useStore } from '@nanostores/preact';
 import { Play, RefreshCw, Trash2 } from 'lucide-preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { TrackItem } from '../components/TrackItem';
 import * as mopidy from '../services/mopidy';
 import { currentTrack } from '../stores/player';
 import { queue, scrollToCurrentTrack, setQueue } from '../stores/queue';
@@ -150,29 +151,26 @@ export function QueueView() {
                         <div
                             key={item.tlid}
                             ref={isCurrentTrack ? currentTrackRef : null}
-                            className={`${styles.track} ${isCurrentTrack ? styles.current : ''}`}
-                            onDblClick={() => handleTrackDoubleClick(item.tlid)}
+                            className={`${styles.trackWrapper} ${isCurrentTrack ? styles.current : ''}`}
                         >
-                            <div className={styles.indexCell}>
-                                {isCurrentTrack ? (
-                                    <span className={styles.playingIndicator}>
-                                        <span></span>
-                                        <span></span>
-                                        <span></span>
-                                    </span>
-                                ) : (
-                                    <span className={styles.index}>{index + 1}</span>
-                                )}
-                            </div>
-                            <div className={styles.info}>
-                                <div className={styles.name}>{item.track.name}</div>
-                                <div className={styles.artist}>
-                                    {item.track.artists?.map((a) => a.name).join(', ') || 'Unknown'}
-                                </div>
-                            </div>
-                            <div className={styles.duration}>
-                                {formatDuration(item.track.duration)}
-                            </div>
+                            <TrackItem
+                                track={item.track}
+                                className={styles.track}
+                                leftContent={
+                                    <div className={styles.indexCell}>
+                                        {isCurrentTrack ? (
+                                            <span className={styles.playingIndicator}>
+                                                <span></span>
+                                                <span></span>
+                                                <span></span>
+                                            </span>
+                                        ) : (
+                                            <span className={styles.index}>{index + 1}</span>
+                                        )}
+                                    </div>
+                                }
+                                onDoubleClick={() => handleTrackDoubleClick(item.tlid)}
+                            />
                             {isSelected && (
                                 <div
                                     className={styles.overlay}
@@ -203,12 +201,4 @@ export function QueueView() {
             </div>
         </div>
     );
-}
-
-function formatDuration(ms: number): string {
-    if (!ms) return '--:--';
-    const seconds = Math.floor(ms / 1000);
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
 }

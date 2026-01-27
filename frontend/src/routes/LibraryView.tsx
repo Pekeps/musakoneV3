@@ -1,7 +1,9 @@
 import { useStore } from '@nanostores/preact';
-import { Check, ChevronLeft, ChevronRight, Disc, Folder, Music, Plus, User } from 'lucide-preact';
-import type { JSX } from 'preact';
-import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { Check, ChevronLeft, ChevronRight, Plus } from 'lucide-preact';
+import { useEffect, useMemo } from 'preact/hooks';
+import { SwipeableItem } from '../components/SwipeableItem';
+import { TrackItem } from '../components/TrackItem';
+import { useAddToQueue } from '../hooks/useAddToQueue';
 import type { LibraryRef } from '../services/mopidy';
 import * as mopidy from '../services/mopidy';
 import {
@@ -18,6 +20,7 @@ import {
     setLibraryLoading,
 } from '../stores/library';
 import { queue } from '../stores/queue';
+import { getLibraryIcon } from '../utils/icons';
 import styles from './LibraryView.module.css';
 
 export function LibraryView() {
@@ -27,6 +30,7 @@ export function LibraryView() {
     const error = useStore(libraryError);
     const uri = useStore(currentUri);
     const queueTracks = useStore(queue);
+    const { addToQueue, addNext } = useAddToQueue();
 
     // Create a set of URIs already in queue for quick lookup
     const queuedUris = useMemo(() => {
@@ -65,13 +69,13 @@ export function LibraryView() {
         e.stopPropagation();
         try {
             if (item.type === 'track') {
-                await mopidy.addToTracklist([item.uri]);
+                await addToQueue(item.uri);
             } else {
                 // For directories/albums, lookup all tracks and add them
                 const tracksMap = await mopidy.lookup([item.uri]);
                 const tracks = tracksMap.get(item.uri) || [];
                 if (tracks.length > 0) {
-                    await mopidy.addToTracklist(tracks.map((t) => t.uri));
+                    await addToQueue(tracks.map((t) => t.uri));
                 }
             }
         } catch (err) {
@@ -82,49 +86,17 @@ export function LibraryView() {
     const handleAddNext = async (item: LibraryRef, e: Event) => {
         e.stopPropagation();
         try {
-            // Get current track position to insert after it
-            const queue = await mopidy.getTracklist();
-            const currentTlid = await mopidy.getCurrentTlid();
-            let insertPosition = 0;
-
-            if (currentTlid) {
-                const currentIndex = queue.findIndex((t) => t.tlid === currentTlid);
-                if (currentIndex !== -1) {
-                    insertPosition = currentIndex + 1;
-                }
-            }
-
             if (item.type === 'track') {
-                await mopidy.addToTracklist([item.uri], insertPosition);
+                await addNext(item.uri);
             } else {
                 const tracksMap = await mopidy.lookup([item.uri]);
                 const tracks = tracksMap.get(item.uri) || [];
                 if (tracks.length > 0) {
-                    await mopidy.addToTracklist(
-                        tracks.map((t) => t.uri),
-                        insertPosition
-                    );
+                    await addNext(tracks.map((t) => t.uri));
                 }
             }
         } catch (err) {
             console.error('Failed to add next:', err);
-        }
-    };
-
-    const getIcon = (type: LibraryRef['type']) => {
-        switch (type) {
-            case 'directory':
-                return <Folder size={20} />;
-            case 'artist':
-                return <User size={20} />;
-            case 'album':
-                return <Disc size={20} />;
-            case 'track':
-                return <Music size={20} />;
-            case 'playlist':
-                return <Folder size={20} />;
-            default:
-                return <Folder size={20} />;
         }
     };
 
@@ -184,7 +156,6 @@ export function LibraryView() {
                                 disabled={loading}
                                 onAdd={handleAddToQueue}
                                 onAddNext={handleAddNext}
-                                getIcon={getIcon}
                             />
                         ) : (
                             <div
@@ -192,7 +163,7 @@ export function LibraryView() {
                                 className={`${styles.item} ${styles[item.type]} ${loading ? styles.itemDisabled : ''}`}
                                 onClick={() => handleItemClick(item)}
                             >
-                                <div className={styles.icon}>{getIcon(item.type)}</div>
+                                <div className={styles.icon}>{getLibraryIcon(item.type)}</div>
                                 <div className={styles.info}>
                                     <div className={styles.name}>{item.name}</div>
                                     <div className={styles.type}>{item.type}</div>
@@ -223,7 +194,6 @@ interface SwipeableLibraryItemProps {
     disabled: boolean;
     onAdd: (item: LibraryRef, e: Event) => void;
     onAddNext: (item: LibraryRef, e: Event) => void;
-    getIcon: (type: LibraryRef['type']) => JSX.Element;
 }
 
 function SwipeableLibraryItem({
@@ -232,100 +202,44 @@ function SwipeableLibraryItem({
     disabled,
     onAdd,
     onAddNext,
-    getIcon,
 }: SwipeableLibraryItemProps) {
-    const [swipeX, setSwipeX] = useState(0);
-    const [swiping, setSwiping] = useState(false);
-    const [animating, setAnimating] = useState<'left' | 'right' | null>(null);
-    const startX = useRef(0);
-    const threshold = 80;
-
-    const handleTouchStart = (e: TouchEvent) => {
-        if (isQueued || disabled || animating) return;
-        startX.current = e.touches[0]?.clientX || 0;
-        setSwiping(true);
-    };
-
-    const handleTouchMove = (e: TouchEvent) => {
-        if (!swiping || isQueued || disabled || animating) return;
-        const diff = (e.touches[0]?.clientX || 0) - startX.current;
-        setSwipeX(Math.max(-150, Math.min(150, diff)));
-    };
-
-    const handleTouchEnd = (e: Event) => {
-        if (!swiping || isQueued || disabled || animating) return;
-        setSwiping(false);
-
-        if (swipeX < -threshold) {
-            setAnimating('left');
-            setTimeout(() => {
-                onAddNext(item, e);
-                setTimeout(() => {
-                    setSwipeX(0);
-                    setAnimating(null);
-                }, 150);
-            }, 200);
-        } else if (swipeX > threshold) {
-            setAnimating('right');
-            setTimeout(() => {
-                onAdd(item, e);
-                setTimeout(() => {
-                    setSwipeX(0);
-                    setAnimating(null);
-                }, 150);
-            }, 200);
-        } else {
-            setSwipeX(0);
-        }
-    };
-
-    const getSwipeIndicator = () => {
-        if (animating === 'left') return styles.swipeNextActive;
-        if (animating === 'right') return styles.swipeAddActive;
-        if (swipeX < -threshold) return styles.swipeNextActive;
-        if (swipeX > threshold) return styles.swipeAddActive;
-        if (swipeX < -20) return styles.swipeNext;
-        if (swipeX > 20) return styles.swipeAdd;
-        return '';
-    };
-
-    const getTransform = () => {
-        if (animating === 'left') return 'translateX(-100%)';
-        if (animating === 'right') return 'translateX(100%)';
-        return `translateX(${swipeX}px)`;
-    };
+    // Create dummy event for swipe callbacks
+    const dummyEvent = new Event('swipe');
 
     return (
-        <div className={`${styles.trackWrapper} ${getSwipeIndicator()}`}>
-            <div className={styles.swipeHint + ' ' + styles.swipeHintLeft}>+ Add Next</div>
-            <div className={styles.swipeHint + ' ' + styles.swipeHintRight}>+ Add to End</div>
-            <div
-                className={`${styles.item} ${styles.track} ${disabled ? styles.itemDisabled : ''} ${animating ? styles.itemAnimating : ''}`}
-                style={{ transform: getTransform() }}
-                onTouchStart={handleTouchStart}
-                onTouchMove={handleTouchMove}
-                onTouchEnd={handleTouchEnd}
-            >
-                <div className={styles.icon}>{getIcon(item.type)}</div>
-                <div className={styles.info}>
-                    <div className={styles.name}>{item.name}</div>
-                    <div className={styles.type}>{item.type}</div>
-                </div>
-                {isQueued ? (
-                    <div className={styles.inQueue} title="Already in queue">
-                        <Check size={18} />
-                    </div>
-                ) : (
-                    <button
-                        className={styles.addBtn}
-                        onClick={(e) => onAdd(item, e)}
-                        aria-label={`Add ${item.name} to queue`}
-                        title="Add to queue"
-                    >
-                        <Plus size={18} />
-                    </button>
-                )}
-            </div>
-        </div>
+        <SwipeableItem
+            isDisabled={isQueued || disabled}
+            onSwipeLeft={() => onAddNext(item, dummyEvent)}
+            onSwipeRight={() => onAdd(item, dummyEvent)}
+            leftLabel="+ Add Next"
+            rightLabel="+ Add to End"
+            threshold={80}
+            className={`${styles.item} ${styles.track} ${disabled ? styles.itemDisabled : ''}`}
+        >
+            <>
+                <TrackItem
+                    track={{ name: item.name, duration: undefined, artists: undefined }}
+                    icon={getLibraryIcon(item.type)}
+                    showDuration={false}
+                    customMeta={item.type}
+                    rightContent={
+                        isQueued ? (
+                            <div className={styles.inQueue} title="Already in queue">
+                                <Check size={18} />
+                            </div>
+                        ) : (
+                            <button
+                                className={styles.addBtn}
+                                onClick={(e) => onAdd(item, e)}
+                                aria-label={`Add ${item.name} to queue`}
+                                title="Add to queue"
+                            >
+                                <Plus size={18} />
+                            </button>
+                        )
+                    }
+                />
+            </>
+        </SwipeableItem>
     );
 }

@@ -2,6 +2,9 @@ import { useStore } from '@nanostores/preact';
 import { Check, ChevronRight, Disc, Music, Plus, Search, User, X } from 'lucide-preact';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { useLocation } from 'wouter';
+import { SwipeableItem } from '../components/SwipeableItem';
+import { TrackItem, DefaultTrackIcon } from '../components/TrackItem';
+import { useAddToQueue } from '../hooks/useAddToQueue';
 import * as mopidy from '../services/mopidy';
 import { connectionStatus } from '../stores/connection';
 import { navigateTo, resetLibrary } from '../stores/library';
@@ -38,6 +41,7 @@ export function SearchView() {
     const [, setLocation] = useLocation();
     const hasInitialized = useRef(false);
     const pendingSearch = useRef<string | null>(null);
+    const { addToQueue, addNext } = useAddToQueue();
 
     // Update URL when search query or tab changes
     const updateUrl = useCallback((searchQuery: string, currentTab: string) => {
@@ -125,7 +129,7 @@ export function SearchView() {
 
     const handleAddTrack = async (track: Track) => {
         try {
-            await mopidy.addToTracklist([track.uri]);
+            await addToQueue(track.uri);
         } catch (err) {
             console.error('Failed to add track:', err);
         }
@@ -133,18 +137,7 @@ export function SearchView() {
 
     const handleAddTrackNext = async (track: Track) => {
         try {
-            const queue = await mopidy.getTracklist();
-            const currentTlid = await mopidy.getCurrentTlid();
-            let insertPosition = 0;
-
-            if (currentTlid) {
-                const currentIndex = queue.findIndex((t) => t.tlid === currentTlid);
-                if (currentIndex !== -1) {
-                    insertPosition = currentIndex + 1;
-                }
-            }
-
-            await mopidy.addToTracklist([track.uri], insertPosition);
+            await addNext(track.uri);
         } catch (err) {
             console.error('Failed to add track next:', err);
         }
@@ -155,7 +148,7 @@ export function SearchView() {
             const tracksMap = await mopidy.lookup([artist.uri]);
             const artistTracks = tracksMap.get(artist.uri) || [];
             if (artistTracks.length > 0) {
-                await mopidy.addToTracklist(artistTracks.map((t) => t.uri));
+                await addToQueue(artistTracks.map((t) => t.uri));
             }
         } catch (err) {
             console.error('Failed to add artist tracks:', err);
@@ -167,7 +160,7 @@ export function SearchView() {
             const tracksMap = await mopidy.lookup([album.uri]);
             const albumTracks = tracksMap.get(album.uri) || [];
             if (albumTracks.length > 0) {
-                await mopidy.addToTracklist(albumTracks.map((t) => t.uri));
+                await addToQueue(albumTracks.map((t) => t.uri));
             }
         } catch (err) {
             console.error('Failed to add album tracks:', err);
@@ -336,107 +329,40 @@ interface SwipeableTrackItemProps {
 }
 
 function SwipeableTrackItem({ track, isQueued, onAdd, onAddNext }: SwipeableTrackItemProps) {
-    const [swipeX, setSwipeX] = useState(0);
-    const [swiping, setSwiping] = useState(false);
-    const [animating, setAnimating] = useState<'left' | 'right' | null>(null);
-    const startX = useRef(0);
-    const threshold = 160;
-
-    const handleTouchStart = (e: TouchEvent) => {
-        if (isQueued || animating) return;
-        startX.current = e.touches[0]?.clientX || 0;
-        setSwiping(true);
-    };
-
-    const handleTouchMove = (e: TouchEvent) => {
-        if (!swiping || isQueued || animating) return;
-        const diff = (e.touches[0]?.clientX || 0) - startX.current;
-        setSwipeX(Math.max(-150, Math.min(150, diff)));
-    };
-
-    const handleTouchEnd = () => {
-        if (!swiping || isQueued || animating) return;
-        setSwiping(false);
-
-        if (swipeX < -threshold) {
-            // Animate off to the left, then add next
-            setAnimating('left');
-            setTimeout(() => {
-                onAddNext(track);
-                setTimeout(() => {
-                    setSwipeX(0);
-                    setAnimating(null);
-                }, 150);
-            }, 200);
-        } else if (swipeX > threshold) {
-            // Animate off to the right, then add to end
-            setAnimating('right');
-            setTimeout(() => {
-                onAdd(track);
-                setTimeout(() => {
-                    setSwipeX(0);
-                    setAnimating(null);
-                }, 150);
-            }, 200);
-        } else {
-            setSwipeX(0);
-        }
-    };
-
-    const getSwipeIndicator = () => {
-        if (animating === 'left') return styles.swipeNextActive;
-        if (animating === 'right') return styles.swipeAddActive;
-        if (swipeX < -threshold) return styles.swipeNextActive;
-        if (swipeX > threshold) return styles.swipeAddActive;
-        if (swipeX < -20) return styles.swipeNext;
-        if (swipeX > 20) return styles.swipeAdd;
-        return '';
-    };
-
-    const getTransform = () => {
-        if (animating === 'left') return 'translateX(-100%)';
-        if (animating === 'right') return 'translateX(100%)';
-        return `translateX(${swipeX}px)`;
-    };
-
     return (
-        <div className={`${styles.trackWrapper} ${getSwipeIndicator()}`}>
-            <div className={styles.swipeHint + ' ' + styles.swipeHintLeft}>+ Queue Next</div>
-            <div className={styles.swipeHint + ' ' + styles.swipeHintRight}>+ Queue to End</div>
-            <div
-                className={`${styles.item} ${animating ? styles.itemAnimating : ''}`}
-                style={{ transform: getTransform() }}
-                onTouchStart={handleTouchStart}
-                onTouchMove={handleTouchMove}
-                onTouchEnd={handleTouchEnd}
-            >
-                <div className={styles.itemIcon}>
-                    <Music size={20} />
-                </div>
-                <div className={styles.itemInfo}>
-                    <div className={styles.itemName}>{track.name}</div>
-                    <div className={styles.itemMeta}>
-                        {track.artists?.map((a) => a.name).join(', ') || 'Unknown Artist'}
-                        {track.album && ` • ${track.album.name}`}
-                    </div>
-                </div>
-                <div className={styles.itemDuration}>{formatDuration(track.duration)}</div>
-                {isQueued ? (
-                    <div className={styles.inQueue} title="Already in queue">
-                        <Check size={18} />
-                    </div>
-                ) : (
-                    <button
-                        className={styles.addBtn}
-                        onClick={() => onAdd(track)}
-                        aria-label={`Add ${track.name} to queue`}
-                        title="Add to queue"
-                    >
-                        <Plus size={18} />
-                    </button>
-                )}
-            </div>
-        </div>
+        <SwipeableItem
+            isDisabled={isQueued}
+            onSwipeLeft={() => onAddNext(track)}
+            onSwipeRight={() => onAdd(track)}
+            leftLabel="+ Queue Next"
+            rightLabel="+ Queue to End"
+            threshold={160}
+            className={styles.item}
+        >
+            <>
+                <TrackItem
+                    track={track}
+                    icon={DefaultTrackIcon}
+                    showAlbum={true}
+                    rightContent={
+                        isQueued ? (
+                            <div className={styles.inQueue} title="Already in queue">
+                                <Check size={18} />
+                            </div>
+                        ) : (
+                            <button
+                                className={styles.addBtn}
+                                onClick={() => onAdd(track)}
+                                aria-label={`Add ${track.name} to queue`}
+                                title="Add to queue"
+                            >
+                                <Plus size={18} />
+                            </button>
+                        )
+                    }
+                />
+            </>
+        </SwipeableItem>
     );
 }
 
@@ -522,12 +448,4 @@ function AlbumList({ albums, onAdd, onClick }: AlbumListProps) {
             ))}
         </div>
     );
-}
-
-function formatDuration(ms: number): string {
-    if (!ms) return '--:--';
-    const seconds = Math.floor(ms / 1000);
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
