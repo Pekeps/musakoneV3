@@ -97,12 +97,6 @@
 
 .trackWrapper {
     position: relative;
-    cursor: move;
-    cursor: grab;
-}
-
-.trackWrapper:active {
-    cursor: grabbing;
 }
 
 .trackWrapper.dragging {
@@ -138,6 +132,30 @@
     height: 40px;
     color: var(--fg-tertiary);
     flex-shrink: 0;
+}
+
+.dragHandle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    color: var(--fg-tertiary);
+    flex-shrink: 0;
+    cursor: grab;
+    transition: color var(--transition-fast);
+}
+
+.dragHandle:active {
+    cursor: grabbing;
+}
+
+.trackWrapper:hover .dragHandle {
+    color: var(--fg-secondary);
+}
+
+.trackWrapper.dragging .dragHandle {
+    color: var(--accent-primary);
 }
 
 .index {

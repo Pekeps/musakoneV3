@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/preact';
-import { Play, RefreshCw, Trash2 } from 'lucide-preact';
+import { GripVertical, Play, RefreshCw, Trash2 } from 'lucide-preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { TrackItem } from '../components/TrackItem';
 import * as mopidy from '../services/mopidy';
@@ -225,6 +225,11 @@ export function QueueView() {
                                         ) : (
                                             <span className={styles.index}>{index + 1}</span>
                                         )}
+                                    </div>
+                                }
+                                rightContent={
+                                    <div className={styles.dragHandle}>
+                                        <GripVertical size={20} />
                                     </div>
                                 }
                                 onDoubleClick={() => handleTrackDoubleClick(item.tlid)}
