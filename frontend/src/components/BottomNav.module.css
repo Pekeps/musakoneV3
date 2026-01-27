@@ -1,56 +1,56 @@
 .bottomNav {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: var(--bottom-nav-height);
-  background: var(--bg-secondary);
-  border-top: 1px solid var(--border-primary);
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
-  z-index: 100;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: var(--bottom-nav-height);
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-primary);
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    z-index: 100;
 }
 
 /* Extend background below viewport to prevent content showing on overscroll */
 .bottomNav::after {
-  content: '';
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  height: 200px;
-  background: var(--bg-secondary);
-  z-index: -1;
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    height: 200px;
+    background: var(--bg-secondary);
+    z-index: -1;
 }
 
 .navItem {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.25rem;
-  min-height: var(--touch-target-min);
-  color: var(--fg-secondary);
-  text-decoration: none;
-  font-size: var(--font-size-sm);
-  transition: color var(--transition-fast);
-  cursor: pointer;
-  background: none;
-  border: none;
-  padding: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    min-height: var(--touch-target-min);
+    color: var(--fg-secondary);
+    text-decoration: none;
+    font-size: var(--font-size-sm);
+    transition: color var(--transition-fast);
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 0;
 }
 
 .navItem:active {
-  transform: scale(0.95);
+    transform: scale(0.95);
 }
 
 .navItem.active {
-  color: var(--accent-primary);
+    color: var(--accent-primary);
 }
 
 .navItem svg {
-  width: 24px;
-  height: 24px;
+    width: 24px;
+    height: 24px;
 }
