@@ -1,6 +1,6 @@
 import { useStore } from '@nanostores/preact';
 import { Pause, Play, SkipBack, SkipForward, Volume2 } from 'lucide-preact';
-import { useEffect, useRef } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { useLocation } from 'wouter';
 import * as mopidy from '../services/mopidy';
 import {
@@ -25,9 +25,11 @@ export function MiniPlayer() {
     const position = useStore(timePosition);
     const currentVolume = useStore(volume);
     const [location, setLocation] = useLocation();
+    const [volumeOpen, setVolumeOpen] = useState(false);
     const localUpdateInterval = useRef<number | null>(null);
     const lastSyncTime = useRef<number>(Date.now());
     const lastSyncPosition = useRef<number>(position);
+    const volumePopupRef = useRef<HTMLDivElement>(null);
 
     // Update time position while playing - derive locally, sync periodically
     useEffect(() => {
@@ -67,6 +69,29 @@ export function MiniPlayer() {
             }
         };
     }, [playing, track]);
+
+    // Close volume popup when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (
+                volumeOpen &&
+                volumePopupRef.current &&
+                !volumePopupRef.current.contains(event.target as Node)
+            ) {
+                setVolumeOpen(false);
+            }
+        };
+
+        if (volumeOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+            document.addEventListener('touchstart', handleClickOutside as any);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('touchstart', handleClickOutside as any);
+        };
+    }, [volumeOpen]);
 
     const handlePlayPause = async () => {
         try {
@@ -207,17 +232,30 @@ export function MiniPlayer() {
                     </button>
                 </div>
 
-                <div className={styles.volumeControl}>
-                    <Volume2 size={16} className={styles.volumeIcon} />
-                    <input
-                        type="range"
-                        className={styles.volumeSlider}
-                        min={0}
-                        max={100}
-                        value={currentVolume}
-                        onChange={handleVolumeChange}
-                        aria-label="Volume"
-                    />
+                <div className={styles.volumeControl} ref={volumePopupRef}>
+                    <button
+                        className={`${styles.controlButton} ${volumeOpen ? styles.volumeButtonActive : ''}`}
+                        onClick={() => setVolumeOpen(!volumeOpen)}
+                        aria-label="Volume control"
+                    >
+                        <Volume2 size={20} />
+                    </button>
+
+                    {volumeOpen && (
+                        <div className={styles.volumePopup}>
+                            <input
+                                type="range"
+                                className={styles.volumeSlider}
+                                min={0}
+                                max={100}
+                                value={currentVolume}
+                                onChange={handleVolumeChange}
+                                orient="vertical"
+                                aria-label="Volume"
+                            />
+                            <div className={styles.volumeValue}>{currentVolume}%</div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

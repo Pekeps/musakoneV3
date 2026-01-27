@@ -164,23 +164,38 @@
 }
 
 .volumeControl {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: var(--spacing-xs);
     flex-shrink: 0;
-    min-width: 100px;
 }
 
-.volumeIcon {
-    color: var(--fg-secondary);
-    flex-shrink: 0;
+.volumeButtonActive {
+    border-color: var(--accent-primary) !important;
+}
+
+.volumePopup {
+    position: absolute;
+    bottom: calc(100% + 0.5rem);
+    right: 0;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-primary);
+    border-radius: 8px;
+    padding: 1rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
 .volumeSlider {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 100%;
-    height: 4px;
+    -webkit-appearance: slider-vertical;
+    appearance: slider-vertical;
+    writing-mode: bt-lr;
+    width: 4px;
+    height: 120px;
     background: var(--bg-secondary);
     border-radius: 2px;
     outline: none;
@@ -224,9 +239,10 @@
     transform: scale(1.1);
 }
 
-/* Tablet and up - show more space for volume */
-@media (min-width: 768px) {
-    .volumeControl {
-        min-width: 120px;
-    }
+.volumeValue {
+    font-size: var(--font-size-xs);
+    color: var(--fg-secondary);
+    min-width: 2.5rem;
+    text-align: center;
 }
+
