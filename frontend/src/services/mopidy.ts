@@ -423,6 +423,10 @@ class MopidyWebSocket {
         await this.rpc('core.tracklist.shuffle');
     }
 
+    async moveTrack(start: number, end: number): Promise<void> {
+        await this.rpc('core.tracklist.move', { start, end, to_position: end });
+    }
+
     async getCurrentTlid(): Promise<number | null> {
         const tlTrack = await this.rpc<MopidyTlTrack | null>('core.playback.get_current_tl_track');
         return tlTrack?.tlid || null;
@@ -626,6 +630,7 @@ export const addToTracklist = (uris: string[], pos?: number) =>
 export const removeFromTracklist = (tlids: number[]) => mopidyClient.removeFromTracklist(tlids);
 export const clearTracklist = () => mopidyClient.clearTracklist();
 export const shuffleTracklist = () => mopidyClient.shuffleTracklist();
+export const moveTrack = (start: number, end: number) => mopidyClient.moveTrack(start, end);
 export const getCurrentTlid = () => mopidyClient.getCurrentTlid();
 export const browse = (uri?: string) => mopidyClient.browse(uri);
 export const lookup = (uris: string[]) => mopidyClient.lookup(uris);

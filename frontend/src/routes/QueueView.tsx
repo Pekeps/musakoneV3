@@ -14,6 +14,8 @@ export function QueueView() {
     const [loading, setLoading] = useState(false);
     const [currentTlid, setCurrentTlid] = useState<number | null>(null);
     const [selectedTlid, setSelectedTlid] = useState<number | null>(null);
+    const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+    const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
     const currentTrackRef = useRef<HTMLDivElement>(null);
 
     const loadQueue = async () => {
@@ -117,6 +119,54 @@ export function QueueView() {
         }
     };
 
+    const handleDragStart = (e: DragEvent, index: number) => {
+        setDraggedIndex(index);
+        if (e.dataTransfer) {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', index.toString());
+        }
+    };
+
+    const handleDragOver = (e: DragEvent, index: number) => {
+        e.preventDefault();
+        if (e.dataTransfer) {
+            e.dataTransfer.dropEffect = 'move';
+        }
+        if (draggedIndex !== null && draggedIndex !== index) {
+            setDragOverIndex(index);
+        }
+    };
+
+    const handleDragLeave = () => {
+        setDragOverIndex(null);
+    };
+
+    const handleDrop = async (e: DragEvent, dropIndex: number) => {
+        e.preventDefault();
+        if (draggedIndex === null || draggedIndex === dropIndex) {
+            setDraggedIndex(null);
+            setDragOverIndex(null);
+            return;
+        }
+
+        try {
+            // Move the track in Mopidy
+            await mopidy.moveTrack(draggedIndex, dropIndex);
+            // Reload queue to get updated state
+            await loadQueue();
+        } catch (err) {
+            console.error('Failed to move track:', err);
+        } finally {
+            setDraggedIndex(null);
+            setDragOverIndex(null);
+        }
+    };
+
+    const handleDragEnd = () => {
+        setDraggedIndex(null);
+        setDragOverIndex(null);
+    };
+
     if (loading && queueTracks.length === 0) {
         return (
             <div className={styles.container}>
@@ -147,11 +197,19 @@ export function QueueView() {
                     const isCurrentTrack =
                         item.tlid === currentTlid || item.track.uri === current?.uri;
                     const isSelected = selectedTlid === item.tlid;
+                    const isDragging = draggedIndex === index;
+                    const isDragOver = dragOverIndex === index;
                     return (
                         <div
                             key={item.tlid}
                             ref={isCurrentTrack ? currentTrackRef : null}
-                            className={`${styles.trackWrapper} ${isCurrentTrack ? styles.current : ''}`}
+                            className={`${styles.trackWrapper} ${isCurrentTrack ? styles.current : ''} ${isDragging ? styles.dragging : ''} ${isDragOver ? styles.dragOver : ''}`}
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, index)}
+                            onDragOver={(e) => handleDragOver(e, index)}
+                            onDragLeave={handleDragLeave}
+                            onDrop={(e) => handleDrop(e, index)}
+                            onDragEnd={handleDragEnd}
                         >
                             <TrackItem
                                 track={item.track}

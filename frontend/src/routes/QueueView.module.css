@@ -97,6 +97,20 @@
 
 .trackWrapper {
     position: relative;
+    cursor: move;
+    cursor: grab;
+}
+
+.trackWrapper:active {
+    cursor: grabbing;
+}
+
+.trackWrapper.dragging {
+    opacity: 0.5;
+}
+
+.trackWrapper.dragOver {
+    border-top: 3px solid var(--accent-primary);
 }
 
 .trackWrapper.current {
