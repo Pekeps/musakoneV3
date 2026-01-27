@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useRef } from 'preact/hooks';
 import { useStore } from '@nanostores/preact';
 import type { JSX } from 'preact';
-import { Folder, Disc, User, Music, Plus, ChevronRight, ChevronLeft, Check } from 'lucide-preact';
+import { Plus, ChevronRight, ChevronLeft, Check } from 'lucide-preact';
 import {
   libraryItems,
   libraryPath,
@@ -17,6 +17,7 @@ import {
 } from '../stores/library';
 import { queue } from '../stores/queue';
 import * as mopidy from '../services/mopidy';
+import { getLibraryIcon } from '../utils/icons';
 import type { LibraryRef } from '../services/mopidy';
 import styles from './LibraryView.module.css';
 
@@ -108,23 +109,6 @@ export function LibraryView() {
     }
   };
 
-  const getIcon = (type: LibraryRef['type']) => {
-    switch (type) {
-      case 'directory':
-        return <Folder size={20} />;
-      case 'artist':
-        return <User size={20} />;
-      case 'album':
-        return <Disc size={20} />;
-      case 'track':
-        return <Music size={20} />;
-      case 'playlist':
-        return <Folder size={20} />;
-      default:
-        return <Folder size={20} />;
-    }
-  };
-
   return (
     <div className={styles.container}>
       {/* Breadcrumb navigation */}
@@ -179,7 +163,6 @@ export function LibraryView() {
                 disabled={loading}
                 onAdd={handleAddToQueue}
                 onAddNext={handleAddNext}
-                getIcon={getIcon}
               />
             ) : (
               <div
@@ -187,7 +170,7 @@ export function LibraryView() {
                 className={`${styles.item} ${styles[item.type]} ${loading ? styles.itemDisabled : ''}`}
                 onClick={() => handleItemClick(item)}
               >
-                <div className={styles.icon}>{getIcon(item.type)}</div>
+                <div className={styles.icon}>{getLibraryIcon(item.type)}</div>
                 <div className={styles.info}>
                   <div className={styles.name}>{item.name}</div>
                   <div className={styles.type}>{item.type}</div>
@@ -218,10 +201,9 @@ interface SwipeableLibraryItemProps {
   disabled: boolean;
   onAdd: (item: LibraryRef, e: Event) => void;
   onAddNext: (item: LibraryRef, e: Event) => void;
-  getIcon: (type: LibraryRef['type']) => JSX.Element;
 }
 
-function SwipeableLibraryItem({ item, isQueued, disabled, onAdd, onAddNext, getIcon }: SwipeableLibraryItemProps) {
+function SwipeableLibraryItem({ item, isQueued, disabled, onAdd, onAddNext }: SwipeableLibraryItemProps) {
   const [swipeX, setSwipeX] = useState(0);
   const [swiping, setSwiping] = useState(false);
   const [animating, setAnimating] = useState<'left' | 'right' | null>(null);
@@ -294,7 +276,7 @@ function SwipeableLibraryItem({ item, isQueued, disabled, onAdd, onAddNext, getI
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        <div className={styles.icon}>{getIcon(item.type)}</div>
+        <div className={styles.icon}>{getLibraryIcon(item.type)}</div>
         <div className={styles.info}>
           <div className={styles.name}>{item.name}</div>
           <div className={styles.type}>{item.type}</div>
