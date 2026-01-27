@@ -10,6 +10,7 @@ import {
 } from "../stores/player";
 import { triggerScrollToCurrent } from "../stores/queue";
 import * as mopidy from "../services/mopidy";
+import { formatDuration } from "../utils/format";
 import styles from "./MiniPlayer.module.css";
 
 /** How often to sync with backend to correct drift (in seconds) */
@@ -200,12 +201,4 @@ export function MiniPlayer() {
       </div>
     </div>
   );
-}
-
-function formatDuration(ms: number): string {
-  if (!ms) return "0:00";
-  const seconds = Math.floor(ms / 1000);
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${mins}:${secs.toString().padStart(2, "0")}`;
 }

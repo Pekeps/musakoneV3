@@ -21,6 +21,7 @@ import * as mopidy from '../services/mopidy';
 import { resetLibrary, navigateTo } from '../stores/library';
 import { queue } from '../stores/queue';
 import { connectionStatus } from '../stores/connection';
+import { formatDuration } from '../utils/format';
 import type { Track, Artist, Album } from '../types';
 import styles from './SearchView.module.css';
 
@@ -508,12 +509,4 @@ function AlbumList({ albums, onAdd, onClick }: AlbumListProps) {
       ))}
     </div>
   );
-}
-
-function formatDuration(ms: number): string {
-  if (!ms) return '--:--';
-  const seconds = Math.floor(ms / 1000);
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
 }

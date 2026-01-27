@@ -4,6 +4,7 @@ import { Trash2, Play, RefreshCw } from "lucide-preact";
 import { queue, setQueue, scrollToCurrentTrack } from "../stores/queue";
 import { currentTrack } from "../stores/player";
 import * as mopidy from "../services/mopidy";
+import { formatDuration } from "../utils/format";
 import styles from "./QueueView.module.css";
 
 export function QueueView() {
@@ -201,12 +202,4 @@ export function QueueView() {
       </div>
     </div>
   );
-}
-
-function formatDuration(ms: number): string {
-  if (!ms) return "--:--";
-  const seconds = Math.floor(ms / 1000);
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
