@@ -207,7 +207,6 @@
     gap: var(--spacing-sm);
     padding: var(--spacing-xs) var(--spacing-sm);
     background: var(--bg-primary);
-    border-bottom: 1px solid var(--border-secondary);
     min-height: 44px;
     transition: transform 0.1s ease-out;
     position: relative;

@@ -161,6 +161,11 @@ export function QueueView() {
         // Optimistic update: move track locally first
         const newQueue = [...queueTracks];
         const [movedTrack] = newQueue.splice(fromIndex, 1);
+        if (!movedTrack) {
+            setDraggedIndex(null);
+            setDragOverIndex(null);
+            return;
+        }
         newQueue.splice(toIndex, 0, movedTrack);
         setQueue(newQueue);
 
