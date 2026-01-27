@@ -137,8 +137,14 @@ export function QueueView() {
         }
     };
 
-    const handleDragLeave = () => {
-        setDragOverIndex(null);
+    const handleDragLeave = (e: DragEvent) => {
+        // Only clear dragOver if we're actually leaving the drop zone
+        // (not just moving to a child element)
+        const target = e.currentTarget as HTMLElement;
+        const related = e.relatedTarget as Node | null;
+        if (!related || !target.contains(related)) {
+            setDragOverIndex(null);
+        }
     };
 
     const handleDrop = async (e: DragEvent, dropIndex: number) => {
@@ -163,8 +169,10 @@ export function QueueView() {
         setDragOverIndex(null);
 
         try {
-            // Move the track in Mopidy (moving a single track)
-            await mopidy.moveTrack(fromIndex, fromIndex + 1, toIndex);
+            // Mopidy API: when moving down, we need to adjust the target position
+            // because we're removing from a lower index first
+            const mopidyToPosition = fromIndex < toIndex ? toIndex - 1 : toIndex;
+            await mopidy.moveTrack(fromIndex, fromIndex + 1, mopidyToPosition);
         } catch (err) {
             console.error('Failed to move track:', err);
             // Reload queue on error to sync with server state
@@ -225,7 +233,7 @@ export function QueueView() {
                             draggable
                             onDragStart={(e) => handleDragStart(e, index)}
                             onDragOver={(e) => handleDragOver(e, index)}
-                            onDragLeave={handleDragLeave}
+                            onDragLeave={(e) => handleDragLeave(e)}
                             onDrop={(e) => handleDrop(e, index)}
                             onDragEnd={handleDragEnd}
                         >
