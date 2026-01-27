@@ -1,9 +1,15 @@
 import { useStore } from '@nanostores/preact';
-import { Pause, Play, SkipBack, SkipForward } from 'lucide-preact';
-import { useEffect, useRef } from 'preact/hooks';
+import { Pause, Play, SkipBack, SkipForward, Volume2 } from 'lucide-preact';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { useLocation } from 'wouter';
 import * as mopidy from '../services/mopidy';
-import { currentTrack, isPlaying, timePosition, updatePlaybackState } from '../stores/player';
+import {
+    currentTrack,
+    isPlaying,
+    timePosition,
+    updatePlaybackState,
+    volume,
+} from '../stores/player';
 import { triggerScrollToCurrent } from '../stores/queue';
 import { formatDuration } from '../utils/format';
 import styles from './MiniPlayer.module.css';
@@ -18,10 +24,13 @@ export function MiniPlayer() {
     const track = useStore(currentTrack);
     const playing = useStore(isPlaying);
     const position = useStore(timePosition);
+    const currentVolume = useStore(volume);
     const [location, setLocation] = useLocation();
+    const [volumeOpen, setVolumeOpen] = useState(false);
     const localUpdateInterval = useRef<number | null>(null);
     const lastSyncTime = useRef<number>(Date.now());
     const lastSyncPosition = useRef<number>(position);
+    const volumePopupRef = useRef<HTMLDivElement>(null);
 
     // Update time position while playing - derive locally, sync periodically
     useEffect(() => {
@@ -61,6 +70,29 @@ export function MiniPlayer() {
             }
         };
     }, [playing, track]);
+
+    // Close volume popup when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (
+                volumeOpen &&
+                volumePopupRef.current &&
+                !volumePopupRef.current.contains(event.target as Node)
+            ) {
+                setVolumeOpen(false);
+            }
+        };
+
+        if (volumeOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+            document.addEventListener('touchstart', handleClickOutside as any);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('touchstart', handleClickOutside as any);
+        };
+    }, [volumeOpen]);
 
     const handlePlayPause = async () => {
         try {
@@ -108,6 +140,17 @@ export function MiniPlayer() {
             lastSyncPosition.current = newPosition;
         } catch (err) {
             console.error('Failed to seek:', err);
+        }
+    };
+
+    const handleVolumeChange = async (e: Event) => {
+        const input = e.target as HTMLInputElement;
+        const newVolume = parseInt(input.value, 10);
+        try {
+            await mopidy.setVolume(newVolume);
+            updatePlaybackState({ volume: newVolume });
+        } catch (err) {
+            console.error('Failed to set volume:', err);
         }
     };
 
@@ -188,6 +231,37 @@ export function MiniPlayer() {
                     >
                         <SkipForward size={20} />
                     </button>
+                </div>
+
+                <div className={styles.volumeControl} ref={volumePopupRef}>
+                    <button
+                        className={`${styles.controlButton} ${volumeOpen ? styles.volumeButtonActive : ''}`}
+                        onClick={() => setVolumeOpen(!volumeOpen)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Escape' && volumeOpen) {
+                                setVolumeOpen(false);
+                            }
+                        }}
+                        aria-label="Volume control"
+                        aria-expanded={volumeOpen}
+                    >
+                        <Volume2 size={20} />
+                    </button>
+
+                    {volumeOpen && (
+                        <div className={styles.volumePopup}>
+                            <input
+                                type="range"
+                                className={styles.volumeSlider}
+                                min={0}
+                                max={100}
+                                value={currentVolume}
+                                onChange={handleVolumeChange}
+                                aria-label="Volume"
+                            />
+                            <div className={styles.volumeValue}>{currentVolume}%</div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

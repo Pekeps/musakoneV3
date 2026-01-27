@@ -162,3 +162,87 @@
     filter: brightness(0.9);
     background: var(--accent-primary);
 }
+
+.volumeControl {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.volumeButtonActive {
+    border-color: var(--accent-primary) !important;
+}
+
+.volumePopup {
+    position: absolute;
+    bottom: calc(100% + 0.5rem);
+    right: 0;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-primary);
+    border-radius: 8px;
+    padding: 0.75rem 0.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.volumeSlider {
+    -webkit-appearance: slider-vertical;
+    appearance: slider-vertical;
+    writing-mode: bt-lr;
+    width: 4px;
+    height: 120px;
+    background: var(--bg-secondary);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+}
+
+.volumeSlider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--accent-primary);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.volumeSlider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: var(--accent-primary);
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.volumeSlider:hover::-webkit-slider-thumb {
+    transform: scale(1.2);
+}
+
+.volumeSlider:hover::-moz-range-thumb {
+    transform: scale(1.2);
+}
+
+.volumeSlider:active::-webkit-slider-thumb {
+    transform: scale(1.1);
+}
+
+.volumeSlider:active::-moz-range-thumb {
+    transform: scale(1.1);
+}
+
+.volumeValue {
+    font-size: var(--font-size-xs);
+    color: var(--fg-secondary);
+    min-width: 2.5rem;
+    text-align: center;
+}
+
