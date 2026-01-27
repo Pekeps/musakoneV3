@@ -23,6 +23,7 @@ import { queue } from '../stores/queue';
 import { connectionStatus } from '../stores/connection';
 import { formatDuration } from '../utils/format';
 import { SwipeableItem } from '../components/SwipeableItem';
+import { useAddToQueue } from '../hooks/useAddToQueue';
 import type { Track, Artist, Album } from '../types';
 import styles from './SearchView.module.css';
 
@@ -40,6 +41,7 @@ export function SearchView() {
   const [, setLocation] = useLocation();
   const hasInitialized = useRef(false);
   const pendingSearch = useRef<string | null>(null);
+  const { addToQueue, addNext } = useAddToQueue();
 
   // Update URL when search query or tab changes
   const updateUrl = useCallback((searchQuery: string, currentTab: string) => {
@@ -124,7 +126,7 @@ export function SearchView() {
 
   const handleAddTrack = async (track: Track) => {
     try {
-      await mopidy.addToTracklist([track.uri]);
+      await addToQueue(track.uri);
     } catch (err) {
       console.error('Failed to add track:', err);
     }
@@ -132,18 +134,7 @@ export function SearchView() {
 
   const handleAddTrackNext = async (track: Track) => {
     try {
-      const queue = await mopidy.getTracklist();
-      const currentTlid = await mopidy.getCurrentTlid();
-      let insertPosition = 0;
-
-      if (currentTlid) {
-        const currentIndex = queue.findIndex((t) => t.tlid === currentTlid);
-        if (currentIndex !== -1) {
-          insertPosition = currentIndex + 1;
-        }
-      }
-
-      await mopidy.addToTracklist([track.uri], insertPosition);
+      await addNext(track.uri);
     } catch (err) {
       console.error('Failed to add track next:', err);
     }
@@ -154,7 +145,7 @@ export function SearchView() {
       const tracksMap = await mopidy.lookup([artist.uri]);
       const artistTracks = tracksMap.get(artist.uri) || [];
       if (artistTracks.length > 0) {
-        await mopidy.addToTracklist(artistTracks.map((t) => t.uri));
+        await addToQueue(artistTracks.map((t) => t.uri));
       }
     } catch (err) {
       console.error('Failed to add artist tracks:', err);
@@ -166,7 +157,7 @@ export function SearchView() {
       const tracksMap = await mopidy.lookup([album.uri]);
       const albumTracks = tracksMap.get(album.uri) || [];
       if (albumTracks.length > 0) {
-        await mopidy.addToTracklist(albumTracks.map((t) => t.uri));
+        await addToQueue(albumTracks.map((t) => t.uri));
       }
     } catch (err) {
       console.error('Failed to add album tracks:', err);

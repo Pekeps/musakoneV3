@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from 'preact/hooks';
+import { useEffect, useMemo } from 'preact/hooks';
 import { useStore } from '@nanostores/preact';
 import { Plus, ChevronRight, ChevronLeft, Check } from 'lucide-preact';
 import {
@@ -18,6 +18,7 @@ import { queue } from '../stores/queue';
 import * as mopidy from '../services/mopidy';
 import { getLibraryIcon } from '../utils/icons';
 import { SwipeableItem } from '../components/SwipeableItem';
+import { useAddToQueue } from '../hooks/useAddToQueue';
 import type { LibraryRef } from '../services/mopidy';
 import styles from './LibraryView.module.css';
 
@@ -28,6 +29,7 @@ export function LibraryView() {
   const error = useStore(libraryError);
   const uri = useStore(currentUri);
   const queueTracks = useStore(queue);
+  const { addToQueue, addNext } = useAddToQueue();
 
   // Create a set of URIs already in queue for quick lookup
   const queuedUris = useMemo(() => {
@@ -66,13 +68,13 @@ export function LibraryView() {
     e.stopPropagation();
     try {
       if (item.type === 'track') {
-        await mopidy.addToTracklist([item.uri]);
+        await addToQueue(item.uri);
       } else {
         // For directories/albums, lookup all tracks and add them
         const tracksMap = await mopidy.lookup([item.uri]);
         const tracks = tracksMap.get(item.uri) || [];
         if (tracks.length > 0) {
-          await mopidy.addToTracklist(tracks.map((t) => t.uri));
+          await addToQueue(tracks.map((t) => t.uri));
         }
       }
     } catch (err) {
@@ -83,25 +85,13 @@ export function LibraryView() {
   const handleAddNext = async (item: LibraryRef, e: Event) => {
     e.stopPropagation();
     try {
-      // Get current track position to insert after it
-      const queue = await mopidy.getTracklist();
-      const currentTlid = await mopidy.getCurrentTlid();
-      let insertPosition = 0;
-
-      if (currentTlid) {
-        const currentIndex = queue.findIndex((t) => t.tlid === currentTlid);
-        if (currentIndex !== -1) {
-          insertPosition = currentIndex + 1;
-        }
-      }
-
       if (item.type === 'track') {
-        await mopidy.addToTracklist([item.uri], insertPosition);
+        await addNext(item.uri);
       } else {
         const tracksMap = await mopidy.lookup([item.uri]);
         const tracks = tracksMap.get(item.uri) || [];
         if (tracks.length > 0) {
-          await mopidy.addToTracklist(tracks.map((t) => t.uri), insertPosition);
+          await addNext(tracks.map((t) => t.uri));
         }
       }
     } catch (err) {
