@@ -1,0 +1,57 @@
+.wrapper {
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+}
+
+.hint {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    padding: 0 var(--spacing-md);
+    font-size: var(--font-size-sm);
+    letter-spacing: var(--letter-spacing);
+    text-transform: uppercase;
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+}
+
+.hintLeft {
+    right: 0;
+    background: var(--accent-primary);
+    color: var(--bg-primary);
+}
+
+.hintRight {
+    left: 0;
+    background: var(--accent-secondary);
+    color: var(--bg-primary);
+}
+
+.swipeLeft .hintLeft,
+.swipeLeftActive .hintLeft {
+    opacity: 1;
+}
+
+.swipeRight .hintRight,
+.swipeRightActive .hintRight {
+    opacity: 1;
+}
+
+.swipeLeftActive .hintLeft,
+.swipeRightActive .hintRight {
+    background: var(--accent-secondary);
+}
+
+.item {
+    position: relative;
+    z-index: 1;
+    background: var(--bg-primary);
+    transition: transform var(--transition-fast);
+}
+
+.itemAnimating {
+    transition: transform 0.2s ease-in-out;
+}

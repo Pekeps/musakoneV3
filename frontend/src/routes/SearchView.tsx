@@ -22,6 +22,7 @@ import { resetLibrary, navigateTo } from '../stores/library';
 import { queue } from '../stores/queue';
 import { connectionStatus } from '../stores/connection';
 import { formatDuration } from '../utils/format';
+import { SwipeableItem } from '../components/SwipeableItem';
 import type { Track, Artist, Album } from '../types';
 import styles from './SearchView.module.css';
 
@@ -321,80 +322,17 @@ interface SwipeableTrackItemProps {
 }
 
 function SwipeableTrackItem({ track, isQueued, onAdd, onAddNext }: SwipeableTrackItemProps) {
-  const [swipeX, setSwipeX] = useState(0);
-  const [swiping, setSwiping] = useState(false);
-  const [animating, setAnimating] = useState<'left' | 'right' | null>(null);
-  const startX = useRef(0);
-  const threshold = 160;
-
-  const handleTouchStart = (e: TouchEvent) => {
-    if (isQueued || animating) return;
-    startX.current = e.touches[0]?.clientX || 0;
-    setSwiping(true);
-  };
-
-  const handleTouchMove = (e: TouchEvent) => {
-    if (!swiping || isQueued || animating) return;
-    const diff = (e.touches[0]?.clientX || 0) - startX.current;
-    setSwipeX(Math.max(-150, Math.min(150, diff)));
-  };
-
-  const handleTouchEnd = () => {
-    if (!swiping || isQueued || animating) return;
-    setSwiping(false);
-
-    if (swipeX < -threshold) {
-      // Animate off to the left, then add next
-      setAnimating('left');
-      setTimeout(() => {
-        onAddNext(track);
-        setTimeout(() => {
-          setSwipeX(0);
-          setAnimating(null);
-        }, 150);
-      }, 200);
-    } else if (swipeX > threshold) {
-      // Animate off to the right, then add to end
-      setAnimating('right');
-      setTimeout(() => {
-        onAdd(track);
-        setTimeout(() => {
-          setSwipeX(0);
-          setAnimating(null);
-        }, 150);
-      }, 200);
-    } else {
-      setSwipeX(0);
-    }
-  };
-
-  const getSwipeIndicator = () => {
-    if (animating === 'left') return styles.swipeNextActive;
-    if (animating === 'right') return styles.swipeAddActive;
-    if (swipeX < -threshold) return styles.swipeNextActive;
-    if (swipeX > threshold) return styles.swipeAddActive;
-    if (swipeX < -20) return styles.swipeNext;
-    if (swipeX > 20) return styles.swipeAdd;
-    return '';
-  };
-
-  const getTransform = () => {
-    if (animating === 'left') return 'translateX(-100%)';
-    if (animating === 'right') return 'translateX(100%)';
-    return `translateX(${swipeX}px)`;
-  };
-
   return (
-    <div className={`${styles.trackWrapper} ${getSwipeIndicator()}`}>
-      <div className={styles.swipeHint + ' ' + styles.swipeHintLeft}>+ Queue Next</div>
-      <div className={styles.swipeHint + ' ' + styles.swipeHintRight}>+ Queue to End</div>
-      <div
-        className={`${styles.item} ${animating ? styles.itemAnimating : ''}`}
-        style={{ transform: getTransform() }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-      >
+    <SwipeableItem
+      isDisabled={isQueued}
+      onSwipeLeft={() => onAddNext(track)}
+      onSwipeRight={() => onAdd(track)}
+      leftLabel="+ Queue Next"
+      rightLabel="+ Queue to End"
+      threshold={160}
+      className={styles.item}
+    >
+      <>
         <div className={styles.itemIcon}>
           <Music size={20} />
         </div>
@@ -422,8 +360,8 @@ function SwipeableTrackItem({ track, isQueued, onAdd, onAddNext }: SwipeableTrac
             <Plus size={18} />
           </button>
         )}
-      </div>
-    </div>
+      </>
+    </SwipeableItem>
   );
 }
 
