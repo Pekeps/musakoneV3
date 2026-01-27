@@ -99,6 +99,14 @@
     position: relative;
 }
 
+.trackWrapper.dragging {
+    opacity: 0.5;
+}
+
+.trackWrapper.dragOver {
+    border-top: 3px solid var(--accent-primary);
+}
+
 .trackWrapper.current {
     background: var(--bg-secondary);
     border-left: 3px solid var(--accent-primary);
@@ -124,6 +132,30 @@
     height: 40px;
     color: var(--fg-tertiary);
     flex-shrink: 0;
+}
+
+.dragHandle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    color: var(--fg-tertiary);
+    flex-shrink: 0;
+    cursor: grab;
+    transition: color var(--transition-fast);
+}
+
+.dragHandle:active {
+    cursor: grabbing;
+}
+
+.trackWrapper:hover .dragHandle {
+    color: var(--fg-secondary);
+}
+
+.trackWrapper.dragging .dragHandle {
+    color: var(--accent-primary);
 }
 
 .index {

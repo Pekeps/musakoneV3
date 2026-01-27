@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/preact';
-import { Play, RefreshCw, Trash2 } from 'lucide-preact';
+import { GripVertical, Play, RefreshCw, Trash2 } from 'lucide-preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { TrackItem } from '../components/TrackItem';
 import * as mopidy from '../services/mopidy';
@@ -14,6 +14,8 @@ export function QueueView() {
     const [loading, setLoading] = useState(false);
     const [currentTlid, setCurrentTlid] = useState<number | null>(null);
     const [selectedTlid, setSelectedTlid] = useState<number | null>(null);
+    const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+    const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
     const currentTrackRef = useRef<HTMLDivElement>(null);
 
     const loadQueue = async () => {
@@ -117,6 +119,77 @@ export function QueueView() {
         }
     };
 
+    const handleDragStart = (e: DragEvent, index: number) => {
+        setDraggedIndex(index);
+        if (e.dataTransfer) {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', index.toString());
+        }
+    };
+
+    const handleDragOver = (e: DragEvent, index: number) => {
+        e.preventDefault();
+        if (e.dataTransfer) {
+            e.dataTransfer.dropEffect = 'move';
+        }
+        if (draggedIndex !== null && draggedIndex !== index) {
+            setDragOverIndex(index);
+        }
+    };
+
+    const handleDragLeave = (e: DragEvent) => {
+        // Only clear dragOver if we're actually leaving the drop zone
+        // (not just moving to a child element)
+        const target = e.currentTarget as HTMLElement;
+        const related = e.relatedTarget as Node | null;
+        if (!related || !target.contains(related)) {
+            setDragOverIndex(null);
+        }
+    };
+
+    const handleDrop = async (e: DragEvent, dropIndex: number) => {
+        e.preventDefault();
+        if (draggedIndex === null || draggedIndex === dropIndex) {
+            setDraggedIndex(null);
+            setDragOverIndex(null);
+            return;
+        }
+
+        const fromIndex = draggedIndex;
+        const toIndex = dropIndex;
+
+        // Optimistic update: move track locally first
+        const newQueue = [...queueTracks];
+        const [movedTrack] = newQueue.splice(fromIndex, 1);
+        if (!movedTrack) {
+            setDraggedIndex(null);
+            setDragOverIndex(null);
+            return;
+        }
+        newQueue.splice(toIndex, 0, movedTrack);
+        setQueue(newQueue);
+
+        // Clear drag state immediately for better UX
+        setDraggedIndex(null);
+        setDragOverIndex(null);
+
+        try {
+            // Mopidy API: when moving down, we need to adjust the target position
+            // because we're removing from a lower index first
+            const mopidyToPosition = fromIndex < toIndex ? toIndex - 1 : toIndex;
+            await mopidy.moveTrack(fromIndex, fromIndex + 1, mopidyToPosition);
+        } catch (err) {
+            console.error('Failed to move track:', err);
+            // Reload queue on error to sync with server state
+            await loadQueue();
+        }
+    };
+
+    const handleDragEnd = () => {
+        setDraggedIndex(null);
+        setDragOverIndex(null);
+    };
+
     if (loading && queueTracks.length === 0) {
         return (
             <div className={styles.container}>
@@ -147,11 +220,27 @@ export function QueueView() {
                     const isCurrentTrack =
                         item.tlid === currentTlid || item.track.uri === current?.uri;
                     const isSelected = selectedTlid === item.tlid;
+                    const isDragging = draggedIndex === index;
+                    const isDragOver = dragOverIndex === index;
+                    
+                    const wrapperClasses = [
+                        styles.trackWrapper,
+                        isCurrentTrack && styles.current,
+                        isDragging && styles.dragging,
+                        isDragOver && styles.dragOver,
+                    ].filter(Boolean).join(' ');
+
                     return (
                         <div
                             key={item.tlid}
                             ref={isCurrentTrack ? currentTrackRef : null}
-                            className={`${styles.trackWrapper} ${isCurrentTrack ? styles.current : ''}`}
+                            className={wrapperClasses}
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, index)}
+                            onDragOver={(e) => handleDragOver(e, index)}
+                            onDragLeave={(e) => handleDragLeave(e)}
+                            onDrop={(e) => handleDrop(e, index)}
+                            onDragEnd={handleDragEnd}
                         >
                             <TrackItem
                                 track={item.track}
@@ -167,6 +256,11 @@ export function QueueView() {
                                         ) : (
                                             <span className={styles.index}>{index + 1}</span>
                                         )}
+                                    </div>
+                                }
+                                rightContent={
+                                    <div className={styles.dragHandle}>
+                                        <GripVertical size={20} />
                                     </div>
                                 }
                                 onDoubleClick={() => handleTrackDoubleClick(item.tlid)}
