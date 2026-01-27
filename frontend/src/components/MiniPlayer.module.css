@@ -163,4 +163,72 @@
   background: var(--accent-primary);
 }
 
+.volumeControl {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  flex-shrink: 0;
+  min-width: 100px;
+}
+
+.volumeIcon {
+  color: var(--fg-secondary);
+  flex-shrink: 0;
+}
+
+.volumeSlider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: var(--bg-secondary);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.volumeSlider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: var(--accent-primary);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.volumeSlider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: var(--accent-primary);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.volumeSlider:hover::-webkit-slider-thumb {
+  transform: scale(1.2);
+}
+
+.volumeSlider:hover::-moz-range-thumb {
+  transform: scale(1.2);
+}
+
+.volumeSlider:active::-webkit-slider-thumb {
+  transform: scale(1.1);
+}
+
+.volumeSlider:active::-moz-range-thumb {
+  transform: scale(1.1);
+}
+
+/* Tablet and up - show more space for volume */
+@media (min-width: 768px) {
+  .volumeControl {
+    min-width: 120px;
+  }
+}
+
 

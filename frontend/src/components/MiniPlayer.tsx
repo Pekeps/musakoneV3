@@ -1,11 +1,12 @@
 import { useEffect, useRef } from "preact/hooks";
 import { useStore } from "@nanostores/preact";
 import { useLocation } from "wouter";
-import { Play, Pause, SkipForward, SkipBack } from "lucide-preact";
+import { Play, Pause, SkipForward, SkipBack, Volume2 } from "lucide-preact";
 import {
   currentTrack,
   isPlaying,
   timePosition,
+  volume,
   updatePlaybackState,
 } from "../stores/player";
 import { triggerScrollToCurrent } from "../stores/queue";
@@ -22,6 +23,7 @@ export function MiniPlayer() {
   const track = useStore(currentTrack);
   const playing = useStore(isPlaying);
   const position = useStore(timePosition);
+  const currentVolume = useStore(volume);
   const [location, setLocation] = useLocation();
   const localUpdateInterval = useRef<number | null>(null);
   const lastSyncTime = useRef<number>(Date.now());
@@ -115,6 +117,17 @@ export function MiniPlayer() {
     }
   };
 
+  const handleVolumeChange = async (e: Event) => {
+    const input = e.target as HTMLInputElement;
+    const newVolume = parseInt(input.value, 10);
+    try {
+      await mopidy.setVolume(newVolume);
+      updatePlaybackState({ volume: newVolume });
+    } catch (err) {
+      console.error("Failed to set volume:", err);
+    }
+  };
+
   const progress = track?.duration ? (position / track.duration) * 100 : 0;
 
   const handleTrackClick = () => {
@@ -196,6 +209,19 @@ export function MiniPlayer() {
           >
             <SkipForward size={20} />
           </button>
+        </div>
+
+        <div className={styles.volumeControl}>
+          <Volume2 size={16} className={styles.volumeIcon} />
+          <input
+            type="range"
+            className={styles.volumeSlider}
+            min={0}
+            max={100}
+            value={currentVolume}
+            onChange={handleVolumeChange}
+            aria-label="Volume"
+          />
         </div>
       </div>
     </div>
