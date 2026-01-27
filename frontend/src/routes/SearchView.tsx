@@ -3,6 +3,7 @@ import { Check, ChevronRight, Disc, Music, Plus, Search, User, X } from 'lucide-
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { useLocation } from 'wouter';
 import { SwipeableItem } from '../components/SwipeableItem';
+import { TrackItem, DefaultTrackIcon } from '../components/TrackItem';
 import { useAddToQueue } from '../hooks/useAddToQueue';
 import * as mopidy from '../services/mopidy';
 import { connectionStatus } from '../stores/connection';
@@ -24,7 +25,6 @@ import {
     setSearchTab,
 } from '../stores/search';
 import type { Album, Artist, Track } from '../types';
-import { formatDuration } from '../utils/format';
 import styles from './SearchView.module.css';
 
 export function SearchView() {
@@ -340,31 +340,27 @@ function SwipeableTrackItem({ track, isQueued, onAdd, onAddNext }: SwipeableTrac
             className={styles.item}
         >
             <>
-                <div className={styles.itemIcon}>
-                    <Music size={20} />
-                </div>
-                <div className={styles.itemInfo}>
-                    <div className={styles.itemName}>{track.name}</div>
-                    <div className={styles.itemMeta}>
-                        {track.artists?.map((a) => a.name).join(', ') || 'Unknown Artist'}
-                        {track.album && ` • ${track.album.name}`}
-                    </div>
-                </div>
-                <div className={styles.itemDuration}>{formatDuration(track.duration)}</div>
-                {isQueued ? (
-                    <div className={styles.inQueue} title="Already in queue">
-                        <Check size={18} />
-                    </div>
-                ) : (
-                    <button
-                        className={styles.addBtn}
-                        onClick={() => onAdd(track)}
-                        aria-label={`Add ${track.name} to queue`}
-                        title="Add to queue"
-                    >
-                        <Plus size={18} />
-                    </button>
-                )}
+                <TrackItem
+                    track={track}
+                    icon={DefaultTrackIcon}
+                    showAlbum={true}
+                    rightContent={
+                        isQueued ? (
+                            <div className={styles.inQueue} title="Already in queue">
+                                <Check size={18} />
+                            </div>
+                        ) : (
+                            <button
+                                className={styles.addBtn}
+                                onClick={() => onAdd(track)}
+                                aria-label={`Add ${track.name} to queue`}
+                                title="Add to queue"
+                            >
+                                <Plus size={18} />
+                            </button>
+                        )
+                    }
+                />
             </>
         </SwipeableItem>
     );

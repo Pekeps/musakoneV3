@@ -95,30 +95,25 @@
     }
 }
 
-.track {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-    padding: var(--spacing-sm) var(--spacing-md);
-    background: var(--bg-primary);
-    border-bottom: 1px solid var(--border-secondary);
-    min-height: var(--touch-target-min);
-    transition: background var(--transition-fast);
+.trackWrapper {
     position: relative;
+}
+
+.trackWrapper.current {
+    background: var(--bg-secondary);
+    border-left: 3px solid var(--accent-primary);
+}
+
+.trackWrapper.current .track {
+    background: var(--bg-secondary);
+}
+
+.track {
     cursor: pointer;
 }
 
 .track:active {
     background: var(--bg-secondary);
-}
-
-.track.current {
-    background: var(--bg-secondary);
-    border-left: 3px solid var(--accent-primary);
-}
-
-.track.current .name {
-    color: var(--accent-primary);
 }
 
 .indexCell {

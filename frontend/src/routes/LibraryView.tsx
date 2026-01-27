@@ -2,6 +2,7 @@ import { useStore } from '@nanostores/preact';
 import { Check, ChevronLeft, ChevronRight, Plus } from 'lucide-preact';
 import { useEffect, useMemo } from 'preact/hooks';
 import { SwipeableItem } from '../components/SwipeableItem';
+import { TrackItem } from '../components/TrackItem';
 import { useAddToQueue } from '../hooks/useAddToQueue';
 import type { LibraryRef } from '../services/mopidy';
 import * as mopidy from '../services/mopidy';
@@ -216,25 +217,28 @@ function SwipeableLibraryItem({
             className={`${styles.item} ${styles.track} ${disabled ? styles.itemDisabled : ''}`}
         >
             <>
-                <div className={styles.icon}>{getLibraryIcon(item.type)}</div>
-                <div className={styles.info}>
-                    <div className={styles.name}>{item.name}</div>
-                    <div className={styles.type}>{item.type}</div>
-                </div>
-                {isQueued ? (
-                    <div className={styles.inQueue} title="Already in queue">
-                        <Check size={18} />
-                    </div>
-                ) : (
-                    <button
-                        className={styles.addBtn}
-                        onClick={(e) => onAdd(item, e)}
-                        aria-label={`Add ${item.name} to queue`}
-                        title="Add to queue"
-                    >
-                        <Plus size={18} />
-                    </button>
-                )}
+                <TrackItem
+                    track={{ name: item.name, duration: undefined, artists: undefined }}
+                    icon={getLibraryIcon(item.type)}
+                    showDuration={false}
+                    customMeta={item.type}
+                    rightContent={
+                        isQueued ? (
+                            <div className={styles.inQueue} title="Already in queue">
+                                <Check size={18} />
+                            </div>
+                        ) : (
+                            <button
+                                className={styles.addBtn}
+                                onClick={(e) => onAdd(item, e)}
+                                aria-label={`Add ${item.name} to queue`}
+                                title="Add to queue"
+                            >
+                                <Plus size={18} />
+                            </button>
+                        )
+                    }
+                />
             </>
         </SwipeableItem>
     );
