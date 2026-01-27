@@ -1,10 +1,10 @@
+import { Disc, Folder, Music, User } from 'lucide-preact';
 import type { JSX } from 'preact';
-import { Folder, Disc, User, Music } from 'lucide-preact';
 import type { LibraryRef } from '../services/mopidy';
 
 /**
  * Get the appropriate icon for a library item type
- * 
+ *
  * @param type - The type of library reference (directory, artist, album, track, playlist)
  * @returns JSX element with the appropriate icon
  */

@@ -1,90 +1,91 @@
 .app {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-secondary);
-  color: var(--fg-primary);
-  font-family: var(--font-family);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-secondary);
+    color: var(--fg-primary);
+    font-family: var(--font-family);
 }
 
 .header {
-  padding: 2rem;
-  text-align: center;
-  border-bottom: 1px solid #303030;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+    padding: 2rem;
+    text-align: center;
+    border-bottom: 1px solid #303030;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .title {
-  margin: 0;
-  color: #00ff88;
-  font-size: 1.5rem;
-  flex: 1;
-  text-align: left;
+    margin: 0;
+    color: #00ff88;
+    font-size: 1.5rem;
+    flex: 1;
+    text-align: left;
 }
 
 .status {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
 }
 
 .statusDot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #808080;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #808080;
 }
 
 .statusDot.connected {
-  background: #00ff88;
+    background: #00ff88;
 }
 
 .statusDot.connecting {
-  background: #ffaa00;
-  animation: pulse 1.5s ease-in-out infinite;
+    background: #ffaa00;
+    animation: pulse 1.5s ease-in-out infinite;
 }
 
 .statusDot.error {
-  background: #ff4444;
+    background: #ff4444;
 }
 
 .logoutBtn {
-  margin-left: 0.75rem;
-  padding: 0.25rem 0.75rem;
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--fg-secondary);
-  background: transparent;
-  border: 1px solid var(--border-primary);
-  cursor: pointer;
-  transition: all 0.2s;
+    margin-left: 0.75rem;
+    padding: 0.25rem 0.75rem;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--fg-secondary);
+    background: transparent;
+    border: 1px solid var(--border-primary);
+    cursor: pointer;
+    transition: all 0.2s;
 }
 
 .logoutBtn:hover {
-  color: var(--accent-primary);
-  border-color: var(--accent-primary);
+    color: var(--accent-primary);
+    border-color: var(--accent-primary);
 }
 
 .logoutBtn:active {
-  opacity: 0.7;
+    opacity: 0.7;
 }
 
 @keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.4;
-  }
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.4;
+    }
 }
 
 .main {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
 }

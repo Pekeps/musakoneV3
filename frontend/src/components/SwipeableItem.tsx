@@ -1,5 +1,5 @@
-import { useState, useRef } from 'preact/hooks';
 import type { JSX } from 'preact';
+import { useRef, useState } from 'preact/hooks';
 import styles from './SwipeableItem.module.css';
 
 interface SwipeableItemProps {
@@ -17,7 +17,7 @@ interface SwipeableItemProps {
 /**
  * A swipeable item component that triggers actions on left/right swipe
  * Used for track items in Library and Search views
- * 
+ *
  * @param children - The content to display
  * @param isDisabled - Whether swiping is disabled
  * @param onSwipeLeft - Callback when swiped left past threshold
@@ -104,9 +104,7 @@ export function SwipeableItem({
 
     return (
         <div className={`${styles.wrapper} ${getSwipeIndicator()} ${wrapperClassName}`}>
-            {onSwipeLeft && (
-                <div className={`${styles.hint} ${styles.hintLeft}`}>{leftLabel}</div>
-            )}
+            {onSwipeLeft && <div className={`${styles.hint} ${styles.hintLeft}`}>{leftLabel}</div>}
             {onSwipeRight && (
                 <div className={`${styles.hint} ${styles.hintRight}`}>{rightLabel}</div>
             )}

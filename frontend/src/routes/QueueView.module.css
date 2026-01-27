@@ -1,281 +1,290 @@
 .container {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
 }
 
 .header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--spacing-md);
-  border-bottom: 1px solid var(--border-primary);
-  flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-md);
+    border-bottom: 1px solid var(--border-primary);
+    flex-shrink: 0;
 }
 
 .titleRow {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
 }
 
 .title {
-  font-size: 1.25rem;
-  color: var(--accent-primary);
-  margin: 0;
+    font-size: 1.25rem;
+    color: var(--accent-primary);
+    margin: 0;
 }
 
 .actions {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
 }
 
 .actionBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-xs);
-  min-width: var(--touch-target-min);
-  min-height: var(--touch-target-min);
-  padding: var(--spacing-sm);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-primary);
-  color: var(--fg-secondary);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-sm);
-  cursor: pointer;
-  transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-xs);
+    min-width: var(--touch-target-min);
+    min-height: var(--touch-target-min);
+    padding: var(--spacing-sm);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    color: var(--fg-secondary);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
 }
 
 .actionBtn:hover {
-  color: var(--fg-primary);
-  border-color: var(--accent-primary);
+    color: var(--fg-primary);
+    border-color: var(--accent-primary);
 }
 
 .actionBtn:active {
-  background: var(--bg-tertiary);
+    background: var(--bg-tertiary);
 }
 
 .actionBtn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .clearBtn:hover {
-  color: var(--error);
-  border-color: var(--error);
+    color: var(--error);
+    border-color: var(--error);
 }
 
 .spinning {
-  animation: spin 1s linear infinite;
+    animation: spin 1s linear infinite;
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .list {
-  flex: 1;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  /* Account for fixed MiniPlayer + BottomNav on mobile */
-  padding-bottom: var(--total-bottom-offset);
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    /* Account for fixed MiniPlayer + BottomNav on mobile */
+    padding-bottom: var(--total-bottom-offset);
 }
 
 @media (min-width: 768px) {
-  .list {
-    padding-bottom: 0;
-  }
+    .list {
+        padding-bottom: 0;
+    }
 }
 
 .track {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-sm) var(--spacing-md);
-  background: var(--bg-primary);
-  border-bottom: 1px solid var(--border-secondary);
-  min-height: var(--touch-target-min);
-  transition: background var(--transition-fast);
-  position: relative;
-  cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border-secondary);
+    min-height: var(--touch-target-min);
+    transition: background var(--transition-fast);
+    position: relative;
+    cursor: pointer;
 }
 
 .track:active {
-  background: var(--bg-secondary);
+    background: var(--bg-secondary);
 }
 
 .track.current {
-  background: var(--bg-secondary);
-  border-left: 3px solid var(--accent-primary);
+    background: var(--bg-secondary);
+    border-left: 3px solid var(--accent-primary);
 }
 
 .track.current .name {
-  color: var(--accent-primary);
+    color: var(--accent-primary);
 }
 
 .indexCell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  color: var(--fg-tertiary);
-  flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    color: var(--fg-tertiary);
+    flex-shrink: 0;
 }
 
 .index {
-  font-size: var(--font-size-sm);
-  font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    font-family: var(--font-mono);
 }
 
 .playingIndicator {
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 2px;
-  height: 16px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 2px;
+    height: 16px;
 }
 
 .playingIndicator span {
-  width: 3px;
-  background: var(--accent-primary);
-  animation: equalizer 0.8s ease-in-out infinite;
+    width: 3px;
+    background: var(--accent-primary);
+    animation: equalizer 0.8s ease-in-out infinite;
 }
 
 .playingIndicator span:nth-child(1) {
-  height: 60%;
-  animation-delay: 0s;
+    height: 60%;
+    animation-delay: 0s;
 }
 
 .playingIndicator span:nth-child(2) {
-  height: 100%;
-  animation-delay: 0.2s;
+    height: 100%;
+    animation-delay: 0.2s;
 }
 
 .playingIndicator span:nth-child(3) {
-  height: 40%;
-  animation-delay: 0.4s;
+    height: 40%;
+    animation-delay: 0.4s;
 }
 
 @keyframes equalizer {
-  0%, 100% { transform: scaleY(1); }
-  50% { transform: scaleY(0.5); }
+    0%,
+    100% {
+        transform: scaleY(1);
+    }
+    50% {
+        transform: scaleY(0.5);
+    }
 }
 
 .info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
 }
 
 .name {
-  color: var(--fg-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: var(--font-size-base);
+    color: var(--fg-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: var(--font-size-base);
 }
 
 .artist {
-  color: var(--fg-secondary);
-  font-size: var(--font-size-sm);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+    color: var(--fg-secondary);
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .duration {
-  color: var(--fg-tertiary);
-  font-size: var(--font-size-sm);
-  text-align: right;
-  flex-shrink: 0;
+    color: var(--fg-tertiary);
+    font-size: var(--font-size-sm);
+    text-align: right;
+    flex-shrink: 0;
 }
 
 .empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 50vh;
-  gap: var(--spacing-sm);
-  color: var(--fg-secondary);
-  text-align: center;
-  padding: var(--spacing-xl);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 50vh;
+    gap: var(--spacing-sm);
+    color: var(--fg-secondary);
+    text-align: center;
+    padding: var(--spacing-xl);
 }
 
 .hint {
-  font-size: var(--font-size-sm);
-  color: var(--fg-tertiary);
+    font-size: var(--font-size-sm);
+    color: var(--fg-tertiary);
 }
 
 .refreshBtn {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  margin-top: var(--spacing-md);
-  padding: var(--spacing-sm) var(--spacing-md);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-primary);
-  color: var(--fg-secondary);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-sm);
-  cursor: pointer;
-  transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    color: var(--fg-secondary);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
 }
 
 .refreshBtn:hover {
-  color: var(--accent-primary);
-  border-color: var(--accent-primary);
+    color: var(--accent-primary);
+    border-color: var(--accent-primary);
 }
 
 .loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 50vh;
-  color: var(--fg-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 50vh;
+    color: var(--fg-secondary);
 }
 
 .overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  gap: 1px;
-  background: var(--border-primary);
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    gap: 1px;
+    background: var(--border-primary);
 }
 
 .overlayBtn {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-xs);
-  background: var(--bg-secondary);
-  border: none;
-  color: var(--fg-primary);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-sm);
-  cursor: pointer;
-  transition: all var(--transition-fast);
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-xs);
+    background: var(--bg-secondary);
+    border: none;
+    color: var(--fg-primary);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
 }
 
 .overlayBtn:hover {
-  background: var(--bg-tertiary);
-  color: var(--accent-primary);
+    background: var(--bg-tertiary);
+    color: var(--accent-primary);
 }
 .overlayBtn:active {
-  background: var(--bg-primary);
+    background: var(--bg-primary);
 }
 
 .overlayBtnDanger:hover {
-  color: var(--error);
+    color: var(--error);
 }

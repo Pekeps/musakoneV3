@@ -1,22 +1,22 @@
 :root {
-  /* Colors - ncmpcpp Retro Console Theme (Red/Black) */
-  --bg-primary: #000000;
-  --bg-secondary: #0a0a0a;
-  --bg-tertiary: #141414;
-  --fg-primary: #ffffff;
-  --fg-secondary: #b0b0b0;
-  --fg-tertiary: #707070;
-  --accent-primary: #cc0000;
-  --accent-secondary: #ff3333;
-  --accent-dim: #880000;
-  --border-primary: #333333;
-  --border-secondary: #1a1a1a;
-  --error: #ff4444;
-  --warning: #ffaa00;
-  --success: #00cc44;
+    /* Colors - ncmpcpp Retro Console Theme (Red/Black) */
+    --bg-primary: #000000;
+    --bg-secondary: #0a0a0a;
+    --bg-tertiary: #141414;
+    --fg-primary: #ffffff;
+    --fg-secondary: #b0b0b0;
+    --fg-tertiary: #707070;
+    --accent-primary: #cc0000;
+    --accent-secondary: #ff3333;
+    --accent-dim: #880000;
+    --border-primary: #333333;
+    --border-secondary: #1a1a1a;
+    --error: #ff4444;
+    --warning: #ffaa00;
+    --success: #00cc44;
 
-  /* Typography */
-  /* 
+    /* Typography */
+    /* 
    * TO CHANGE FONT: Update --font-family below with any Google Font name from index.html
    * Examples:
    *   --font-family: "VT323", monospace;
@@ -25,69 +25,69 @@
    *   --font-family: "Fira Code", monospace;
    * Don't forget to add the font link in index.html first!
    */
-  --font-family: "VT323", monospace;
-  --font-size-base: 16px;
-  --line-height: 1rem;
+    --font-family: "VT323", monospace;
+    --font-size-base: 16px;
+    --line-height: 1rem;
 
-  /* Spacing */
-  --spacing-xs: 0.25rem;
-  --spacing-sm: 0.5rem;
-  --spacing-md: 1rem;
-  --spacing-lg: 1.5rem;
-  --spacing-xl: 2rem;
-  
-  /* Touch Targets - Mobile Priority */
-  --touch-target-min: 48px;
-  --touch-target-desktop: 32px;
-  
-  /* Layout */
-  --bottom-nav-height: 48px;
-  --mini-player-height: 40px;
-  
-  /* Transitions */
-  --transition-fast: 150ms ease;
+    /* Spacing */
+    --spacing-xs: 0.25rem;
+    --spacing-sm: 0.5rem;
+    --spacing-md: 1rem;
+    --spacing-lg: 1.5rem;
+    --spacing-xl: 2rem;
+
+    /* Touch Targets - Mobile Priority */
+    --touch-target-min: 48px;
+    --touch-target-desktop: 32px;
+
+    /* Layout */
+    --bottom-nav-height: 48px;
+    --mini-player-height: 40px;
+
+    /* Transitions */
+    --transition-fast: 150ms ease;
 }
 
 * {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
 }
 
 html {
-  font-size: var(--font-size-base);
+    font-size: var(--font-size-base);
 }
 
 body {
-  font-family: var(--font-family);
-  line-height: var(--line-height);
-  color: var(--fg-primary);
-  background: var(--bg-primary);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+    font-family: var(--font-family);
+    line-height: var(--line-height);
+    color: var(--fg-primary);
+    background: var(--bg-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
 #app {
-  min-height: 100vh;
-  font-family: var(--font-family);
+    min-height: 100vh;
+    font-family: var(--font-family);
 }
 
 button {
-  font-family: var(--font-family);
-  cursor: pointer;
+    font-family: var(--font-family);
+    cursor: pointer;
 }
 
 input,
 textarea,
 select {
-  font-family: var(--font-family);
+    font-family: var(--font-family);
 }
 
 a {
-  color: var(--accent-primary);
-  text-decoration: none;
+    color: var(--accent-primary);
+    text-decoration: none;
 }
 
 a:hover {
-  text-decoration: underline;
+    text-decoration: underline;
 }
