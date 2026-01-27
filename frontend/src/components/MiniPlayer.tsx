@@ -236,7 +236,13 @@ export function MiniPlayer() {
                     <button
                         className={`${styles.controlButton} ${volumeOpen ? styles.volumeButtonActive : ''}`}
                         onClick={() => setVolumeOpen(!volumeOpen)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Escape' && volumeOpen) {
+                                setVolumeOpen(false);
+                            }
+                        }}
                         aria-label="Volume control"
+                        aria-expanded={volumeOpen}
                     >
                         <Volume2 size={20} />
                     </button>
@@ -250,7 +256,6 @@ export function MiniPlayer() {
                                 max={100}
                                 value={currentVolume}
                                 onChange={handleVolumeChange}
-                                orient="vertical"
                                 aria-label="Volume"
                             />
                             <div className={styles.volumeValue}>{currentVolume}%</div>
