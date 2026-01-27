@@ -149,16 +149,26 @@ export function QueueView() {
             return;
         }
 
+        const fromIndex = draggedIndex;
+        const toIndex = dropIndex;
+
+        // Optimistic update: move track locally first
+        const newQueue = [...queueTracks];
+        const [movedTrack] = newQueue.splice(fromIndex, 1);
+        newQueue.splice(toIndex, 0, movedTrack);
+        setQueue(newQueue);
+
+        // Clear drag state immediately for better UX
+        setDraggedIndex(null);
+        setDragOverIndex(null);
+
         try {
-            // Move the track in Mopidy
-            await mopidy.moveTrack(draggedIndex, dropIndex);
-            // Reload queue to get updated state
-            await loadQueue();
+            // Move the track in Mopidy (moving a single track)
+            await mopidy.moveTrack(fromIndex, fromIndex + 1, toIndex);
         } catch (err) {
             console.error('Failed to move track:', err);
-        } finally {
-            setDraggedIndex(null);
-            setDragOverIndex(null);
+            // Reload queue on error to sync with server state
+            await loadQueue();
         }
     };
 
@@ -199,11 +209,19 @@ export function QueueView() {
                     const isSelected = selectedTlid === item.tlid;
                     const isDragging = draggedIndex === index;
                     const isDragOver = dragOverIndex === index;
+                    
+                    const wrapperClasses = [
+                        styles.trackWrapper,
+                        isCurrentTrack && styles.current,
+                        isDragging && styles.dragging,
+                        isDragOver && styles.dragOver,
+                    ].filter(Boolean).join(' ');
+
                     return (
                         <div
                             key={item.tlid}
                             ref={isCurrentTrack ? currentTrackRef : null}
-                            className={`${styles.trackWrapper} ${isCurrentTrack ? styles.current : ''} ${isDragging ? styles.dragging : ''} ${isDragOver ? styles.dragOver : ''}`}
+                            className={wrapperClasses}
                             draggable
                             onDragStart={(e) => handleDragStart(e, index)}
                             onDragOver={(e) => handleDragOver(e, index)}
