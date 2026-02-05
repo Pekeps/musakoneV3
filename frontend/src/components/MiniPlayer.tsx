@@ -159,7 +159,7 @@ export function MiniPlayer() {
     };
 
     return (
-        <div className="fixed bottom-[var(--bottom-nav-height)] left-0 right-0 bg-bg-tertiary border-t border-border-primary flex flex-col z-99">
+        <div className="w-full bg-bg-tertiary border-t border-border-primary flex flex-col" style={{ height: 'var(--mini-player-height)', flexShrink: 0, overflow: 'hidden' }}>
             {/* Progress bar */}
             <div className="progress-bar" style={{ '--progress': `${progress}%` }}>
                 {track && (

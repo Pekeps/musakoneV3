@@ -178,6 +178,15 @@ fn handle_request(
       }
     }
 
+    // Admin dashboard (all users data)
+    http.Get, ["api", "analytics", "admin"] -> {
+      case get_auth_header(req) {
+        Ok(auth_header) ->
+          http_handlers.get_admin_dashboard(state, auth_header) |> with_cors
+        Error(e) -> error_response(e, 401) |> with_cors
+      }
+    }
+
     // ML data export (paginated)
     http.Get, ["api", "analytics", "export"] -> {
       case get_auth_header(req) {

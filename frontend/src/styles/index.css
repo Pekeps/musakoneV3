@@ -1,9 +1,41 @@
 /* Custom variables and styles not covered by UnoCSS */
 :root {
-    /* Layout dimensions (used by fixed positioning) */
+    /* Layout dimensions */
     --bottom-nav-height: 50px;
-    --mini-player-height: 40px;
+    --mini-player-height: 60px;
     --total-bottom-offset: calc(var(--bottom-nav-height) + var(--mini-player-height));
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Lock the document to the viewport – no page-level scroll */
+html, body {
+    height: 100%;
+    overflow: hidden;
+}
+
+/* App root grid layout: header | content | bottom controls */
+.app-root {
+    height: 100vh;
+    height: 100dvh; /* dynamic viewport for mobile browsers */
+    display: grid;
+    grid-template-rows: auto 1fr auto; /* header, main, bottom-controls */
+    overflow: hidden;
+}
+
+.app-main {
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0; /* allow proper grid scroll containment */
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Bottom controls: never scroll, never shrink */
+.bottom-controls {
+    padding-bottom: var(--safe-bottom);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow: hidden;
 }
 
 /* Mobile browser autofill/autocomplete prevention */

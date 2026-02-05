@@ -175,7 +175,7 @@ export function SearchView() {
     const hasResults = tracks.length > 0 || artists.length > 0 || albums.length > 0;
 
     return (
-        <div className="flex flex-col h-full overflow-hidden">
+        <div className="flex flex-col h-full overflow-hidden"> 
             {/* Search input */}
             <form className="flex gap-0 border-b border-border-primary shrink-0" onSubmit={handleSubmit} autoComplete="off">
                 <div className="flex-1 flex items-center bg-bg-secondary border border-border-primary focus-within:border-accent-primary transition-colors duration-150">

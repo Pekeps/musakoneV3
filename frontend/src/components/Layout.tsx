@@ -51,8 +51,9 @@ export function Layout({ children }: LayoutProps) {
     };
 
     return (
-        <div className="flex flex-col min-h-screen">
-            <header className="sticky top-0 z-102 bg-bg-secondary px-4 py-2 text-center border-b border-border-primary flex justify-between items-center md:static">
+        <div className="app-root">
+            {/* Row 1: Header */}
+            <header className="bg-bg-secondary px-4 py-2 border-b border-border-primary flex justify-between items-center z-10">
                 <h1 className="m-0 text-accent-primary text-base flex-1 text-left">MusakoneV3</h1>
                 <div className="flex items-center gap-2 text-sm">
                     <div className={`status-dot ${getStatusDotClass()}`} />
@@ -68,12 +69,16 @@ export function Layout({ children }: LayoutProps) {
                 </div>
             </header>
 
-            <main className="flex-1 flex flex-col overflow-auto pb-[var(--total-bottom-offset)] md:pb-0">
+            {/* Row 2: Scrollable content */}
+            <main className="app-main flex flex-col">
                 {children}
             </main>
 
-            {location === '/' && <MiniPlayer />}
-            <BottomNav />
+            {/* Row 3: Bottom controls – always in-flow, never overlaps content */}
+            <div className="bottom-controls">
+                {location === '/' && <MiniPlayer />}
+                <BottomNav />
+            </div>
         </div>
     );
 }

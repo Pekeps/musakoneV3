@@ -3,6 +3,7 @@ import { useEffect } from 'preact/hooks';
 import { Route, Switch } from 'wouter';
 import { Layout } from './components/Layout';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { AnalyticsView } from './routes/AnalyticsView';
 import { LibraryView } from './routes/LibraryView';
 import { Login } from './routes/Login';
 import { QueueView } from './routes/QueueView';
@@ -79,6 +80,14 @@ export const App = () => {
                     <ProtectedRoute>
                         <Layout>
                             <SearchView />
+                        </Layout>
+                    </ProtectedRoute>
+                </Route>
+
+                <Route path="/analytics">
+                    <ProtectedRoute>
+                        <Layout>
+                            <AnalyticsView />
                         </Layout>
                     </ProtectedRoute>
                 </Route>

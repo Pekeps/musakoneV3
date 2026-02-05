@@ -533,3 +533,229 @@ pub fn get_event_counts(
 
   sqlight.query(sql, db, [], decoder)
 }
+
+// ============================================================================
+// RECENT EVENTS (for dashboard)
+// ============================================================================
+
+/// Get recent playback events since timestamp
+pub fn get_recent_playback_events(
+  db: sqlight.Connection,
+  since_ms: Int,
+) -> Result(List(PlaybackEvent), sqlight.Error) {
+  let sql =
+    "SELECT id, user_id, timestamp_ms, event_type,
+       track_uri, track_name, artist_name, album_name,
+       track_duration_ms, position_ms, seek_to_ms, volume_level, playback_flags
+     FROM playback_events
+     WHERE timestamp_ms >= ?
+     ORDER BY timestamp_ms DESC
+     LIMIT 100"
+
+  sqlight.query(sql, db, [sqlight.int(since_ms)], playback_event_decoder())
+}
+
+/// Get recent queue events since timestamp
+pub fn get_recent_queue_events(
+  db: sqlight.Connection,
+  since_ms: Int,
+) -> Result(List(QueueEvent), sqlight.Error) {
+  let sql =
+    "SELECT id, user_id, timestamp_ms, event_type,
+       track_uris, track_names, at_position, from_position, to_position, queue_length
+     FROM queue_events
+     WHERE timestamp_ms >= ?
+     ORDER BY timestamp_ms DESC
+     LIMIT 100"
+
+  sqlight.query(sql, db, [sqlight.int(since_ms)], queue_event_decoder())
+}
+
+/// Get recent search events since timestamp
+pub fn get_recent_search_events(
+  db: sqlight.Connection,
+  since_ms: Int,
+) -> Result(List(SearchEvent), sqlight.Error) {
+  let sql =
+    "SELECT id, user_id, timestamp_ms, event_type,
+       query_text, browse_uri, result_count
+     FROM search_events
+     WHERE timestamp_ms >= ?
+     ORDER BY timestamp_ms DESC
+     LIMIT 100"
+
+  sqlight.query(sql, db, [sqlight.int(since_ms)], search_event_decoder())
+}
+
+// ============================================================================
+// ADMIN ANALYTICS (all users)
+// ============================================================================
+
+/// Get user activity summary for admin dashboard
+pub fn get_user_activity_summary(
+  db: sqlight.Connection,
+) -> Result(List(#(String, Int, Int, Int, Int)), sqlight.Error) {
+  let sql =
+    "SELECT
+       u.username,
+       COUNT(pe.id) as playback_events,
+       COUNT(qe.id) as queue_events,
+       COUNT(se.id) as search_events,
+       COUNT(pe.id) + COUNT(qe.id) + COUNT(se.id) as total_events
+     FROM users u
+     LEFT JOIN playback_events pe ON u.id = pe.user_id
+     LEFT JOIN queue_events qe ON u.id = qe.user_id
+     LEFT JOIN search_events se ON u.id = se.user_id
+     GROUP BY u.id, u.username
+     ORDER BY total_events DESC"
+
+  let decoder = {
+    use username <- decode.field(0, decode.string)
+    use playback <- decode.field(1, decode.int)
+    use queue <- decode.field(2, decode.int)
+    use search <- decode.field(3, decode.int)
+    use total <- decode.field(4, decode.int)
+    decode.success(#(username, playback, queue, search, total))
+  }
+
+  sqlight.query(sql, db, [], decoder)
+}
+
+/// Get system-wide event counts by hour for the last 24 hours
+pub fn get_hourly_activity(
+  db: sqlight.Connection,
+) -> Result(List(#(Int, Int)), sqlight.Error) {
+  let sql =
+    "SELECT
+       strftime('%H', datetime(timestamp_ms / 1000, 'unixepoch')) as hour,
+       COUNT(*) as events
+     FROM (
+       SELECT timestamp_ms FROM playback_events
+       UNION ALL
+       SELECT timestamp_ms FROM queue_events
+       UNION ALL
+       SELECT timestamp_ms FROM search_events
+     )
+     WHERE timestamp_ms >= (strftime('%s', 'now') * 1000) - (24 * 60 * 60 * 1000)
+     GROUP BY hour
+     ORDER BY hour"
+
+  let decoder = {
+    use hour <- decode.field(0, decode.int)
+    use events <- decode.field(1, decode.int)
+    decode.success(#(hour, events))
+  }
+
+  sqlight.query(sql, db, [], decoder)
+}
+
+/// Get most played tracks across all users
+pub fn get_popular_tracks(
+  db: sqlight.Connection,
+  limit: Int,
+) -> Result(List(#(String, String, Int, Int)), sqlight.Error) {
+  let sql =
+    "SELECT
+       COALESCE(track_name, 'Unknown') as track,
+       COALESCE(artist_name, 'Unknown') as artist,
+       COUNT(*) as play_count,
+       COUNT(DISTINCT user_id) as unique_users
+     FROM playback_events
+     WHERE event_type IN ('play', 'resume') AND track_name IS NOT NULL
+     GROUP BY track_uri, track_name, artist_name
+     ORDER BY play_count DESC
+     LIMIT ?"
+
+  let decoder = {
+    use track <- decode.field(0, decode.string)
+    use artist <- decode.field(1, decode.string)
+    use plays <- decode.field(2, decode.int)
+    use users <- decode.field(3, decode.int)
+    decode.success(#(track, artist, plays, users))
+  }
+
+  sqlight.query(sql, db, [sqlight.int(limit)], decoder)
+}
+
+/// Get most searched terms
+pub fn get_popular_searches(
+  db: sqlight.Connection,
+  limit: Int,
+) -> Result(List(#(String, Int, Int)), sqlight.Error) {
+  let sql =
+    "SELECT
+       query_text,
+       COUNT(*) as search_count,
+       COUNT(DISTINCT user_id) as unique_users
+     FROM search_events
+     WHERE event_type = 'query' AND query_text IS NOT NULL
+     GROUP BY query_text
+     ORDER BY search_count DESC
+     LIMIT ?"
+
+  let decoder = {
+    use query <- decode.field(0, decode.string)
+    use searches <- decode.field(1, decode.int)
+    use users <- decode.field(2, decode.int)
+    decode.success(#(query, searches, users))
+  }
+
+  sqlight.query(sql, db, [sqlight.int(limit)], decoder)
+}
+
+/// Get event type distribution
+pub fn get_event_type_distribution(
+  db: sqlight.Connection,
+) -> Result(List(#(String, Int)), sqlight.Error) {
+  let sql =
+    "SELECT event_type, COUNT(*) as count
+     FROM (
+       SELECT event_type FROM playback_events
+       UNION ALL
+       SELECT event_type FROM queue_events
+       UNION ALL
+       SELECT event_type FROM search_events
+     )
+     GROUP BY event_type
+     ORDER BY count DESC"
+
+  let decoder = {
+    use event_type <- decode.field(0, decode.string)
+    use count <- decode.field(1, decode.int)
+    decode.success(#(event_type, count))
+  }
+
+  sqlight.query(sql, db, [], decoder)
+}
+
+/// Get all users with their last activity
+pub fn get_all_users_with_activity(
+  db: sqlight.Connection,
+) -> Result(List(#(Int, String, Option(Int), Int)), sqlight.Error) {
+  let sql =
+    "SELECT
+       u.id,
+       u.username,
+       MAX(e.timestamp_ms) as last_activity,
+       COUNT(e.id) as total_events
+     FROM users u
+     LEFT JOIN (
+       SELECT user_id, id, timestamp_ms FROM playback_events
+       UNION ALL
+       SELECT user_id, id, timestamp_ms FROM queue_events
+       UNION ALL
+       SELECT user_id, id, timestamp_ms FROM search_events
+     ) e ON u.id = e.user_id
+     GROUP BY u.id, u.username
+     ORDER BY last_activity DESC NULLS LAST"
+
+  let decoder = {
+    use id <- decode.field(0, decode.int)
+    use username <- decode.field(1, decode.string)
+    use last_activity <- decode.field(2, decode.optional(decode.int))
+    use total_events <- decode.field(3, decode.int)
+    decode.success(#(id, username, last_activity, total_events))
+  }
+
+  sqlight.query(sql, db, [], decoder)
+}

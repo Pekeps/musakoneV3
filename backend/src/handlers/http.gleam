@@ -163,6 +163,10 @@ pub fn get_events(
         Ok(jwt_data) -> {
           case get_user_id_from_jwt(jwt_data) {
             Ok(user_id) -> {
+              let counts =
+                queries.get_event_counts(state.db)
+                |> result.unwrap([])
+
               let playback =
                 queries.get_playback_events(state.db, user_id, 50)
                 |> result.unwrap([])
@@ -174,6 +178,17 @@ pub fn get_events(
                 |> result.unwrap([])
 
               json.object([
+                #(
+                  "counts",
+                  json.object(
+                    list.map(counts, fn(c) {
+                      let #(tbl, cnt) = c
+                      #(tbl, json.int(cnt))
+                    }),
+                  ),
+                ),
+                #("offset", json.int(0)),
+                #("limit", json.int(50)),
                 #("playback", json.array(playback, encode_playback_event)),
                 #("queue", json.array(queue, encode_queue_event)),
                 #("search", json.array(search, encode_search_event)),
@@ -332,6 +347,137 @@ pub fn export_ml_data(
             #("playback", json.array(playback, encode_playback_event)),
             #("queue", json.array(queue, encode_queue_event)),
             #("search", json.array(search, encode_search_event)),
+          ])
+          |> json.to_string
+          |> respond_json(200)
+        }
+        Error(e) -> {
+          error_response("Invalid or expired token: " <> string.inspect(e), 401)
+        }
+      }
+    }
+    Error(e) -> error_response(e, 401)
+  }
+}
+
+// ============================================================================
+// ADMIN ANALYTICS ENDPOINTS (all users data)
+// ============================================================================
+
+/// Get comprehensive admin dashboard data
+pub fn get_admin_dashboard(
+  state: AppState,
+  auth_header: String,
+) -> Response(ResponseData) {
+  case extract_token(auth_header) {
+    Ok(token) -> {
+      case verify_jwt_token(token, state.jwt_secret) {
+        Ok(_jwt_data) -> {
+          // Get all dashboard data in parallel
+          let user_activity = queries.get_user_activity_summary(state.db)
+          let hourly_activity = queries.get_hourly_activity(state.db)
+          let popular_tracks = queries.get_popular_tracks(state.db, 10)
+          let popular_searches = queries.get_popular_searches(state.db, 10)
+          let event_distribution = queries.get_event_type_distribution(state.db)
+          let all_users = queries.get_all_users_with_activity(state.db)
+          let total_counts = queries.get_event_counts(state.db)
+
+          json.object([
+            #(
+              "user_activity",
+              json.array(
+                result.unwrap(user_activity, []),
+                fn(summary) {
+                  let #(username, playback, queue, search, total) = summary
+                  json.object([
+                    #("username", json.string(username)),
+                    #("playback_events", json.int(playback)),
+                    #("queue_events", json.int(queue)),
+                    #("search_events", json.int(search)),
+                    #("total_events", json.int(total)),
+                  ])
+                },
+              ),
+            ),
+            #(
+              "hourly_activity",
+              json.array(
+                result.unwrap(hourly_activity, []),
+                fn(hourly) {
+                  let #(hour, events) = hourly
+                  json.object([
+                    #("hour", json.int(hour)),
+                    #("events", json.int(events)),
+                  ])
+                },
+              ),
+            ),
+            #(
+              "popular_tracks",
+              json.array(
+                result.unwrap(popular_tracks, []),
+                fn(track) {
+                  let #(name, artist, plays, users) = track
+                  json.object([
+                    #("name", json.string(name)),
+                    #("artist", json.string(artist)),
+                    #("play_count", json.int(plays)),
+                    #("unique_users", json.int(users)),
+                  ])
+                },
+              ),
+            ),
+            #(
+              "popular_searches",
+              json.array(
+                result.unwrap(popular_searches, []),
+                fn(search) {
+                  let #(query, searches, users) = search
+                  json.object([
+                    #("query", json.string(query)),
+                    #("search_count", json.int(searches)),
+                    #("unique_users", json.int(users)),
+                  ])
+                },
+              ),
+            ),
+            #(
+              "event_distribution",
+              json.array(
+                result.unwrap(event_distribution, []),
+                fn(dist) {
+                  let #(event_type, count) = dist
+                  json.object([
+                    #("event_type", json.string(event_type)),
+                    #("count", json.int(count)),
+                  ])
+                },
+              ),
+            ),
+            #(
+              "users",
+              json.array(
+                result.unwrap(all_users, []),
+                fn(user) {
+                  let #(id, username, last_activity, total_events) = user
+                  json.object([
+                    #("id", json.int(id)),
+                    #("username", json.string(username)),
+                    #("last_activity", json.nullable(last_activity, json.int)),
+                    #("total_events", json.int(total_events)),
+                  ])
+                },
+              ),
+            ),
+            #(
+              "totals",
+              json.object(
+                list.map(result.unwrap(total_counts, []), fn(c) {
+                  let #(tbl, cnt) = c
+                  #(tbl, json.int(cnt))
+                }),
+              ),
+            ),
           ])
           |> json.to_string
           |> respond_json(200)

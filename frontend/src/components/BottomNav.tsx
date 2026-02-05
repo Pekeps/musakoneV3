@@ -1,5 +1,5 @@
 import { useLocation } from 'wouter';
-import { List, Library, Search } from 'lucide-preact';
+import { List, Library, Search, BarChart3 } from 'lucide-preact';
 
 export function BottomNav() {
     const [location, setLocation] = useLocation();
@@ -11,7 +11,7 @@ export function BottomNav() {
     ];
 
     return (
-        <nav className="fixed bottom-0 left-0 right-0 h-[var(--bottom-nav-height)] bg-bg-secondary border-t border-border-primary flex justify-around items-center z-100 bottom-nav-after">
+        <nav className="w-full h-[var(--bottom-nav-height)] bg-bg-secondary border-t border-border-primary flex justify-around items-center bottom-nav-after" style={{ flexShrink: 0 }}>
             {navItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = location === item.path;

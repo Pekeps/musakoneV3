@@ -94,7 +94,7 @@ export function LibraryView() {
     };
 
     return (
-        <div className="flex flex-col h-full overflow-hidden">
+        <div className="flex flex-col h-full overflow-hidden"> 
             {/* Breadcrumb navigation */}
             <div className="flex items-center gap-1 px-2 py-1 border-b border-border-primary shrink-0 overflow-x-auto bg-bg-secondary">
                 {path.length > 1 && (
