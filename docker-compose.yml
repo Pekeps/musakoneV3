@@ -29,6 +29,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 1s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   backend:
     build:
@@ -45,6 +50,11 @@ services:
     restart: unless-stopped
     networks:
       - musakone
+    logs:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Frontend web application
   frontend:
@@ -67,6 +77,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 5s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   mopidy-local:

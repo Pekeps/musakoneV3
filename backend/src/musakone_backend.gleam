@@ -8,8 +8,11 @@ import gleam/http
 import gleam/http/request.{type Request}
 import gleam/http/response.{type Response}
 import gleam/int
+import gleam/list
+import gleam/option
 import gleam/result
 import gleam/string
+import gleam/uri
 import handlers/http as http_handlers
 import logging
 import mist
@@ -159,32 +162,10 @@ fn handle_request(
     }
 
     // Analytics endpoints
-    http.Post, ["api", "analytics", "actions"] -> {
-      case get_auth_header(req) {
-        Ok(auth_header) -> {
-          case mist.read_body(req, max_body_limit: 1024 * 1024) {
-            Ok(body_req) -> {
-              case bit_array.to_string(body_req.body) {
-                Ok(body) ->
-                  http_handlers.log_action(state, auth_header, body)
-                  |> with_cors
-                Error(_) ->
-                  error_response("Invalid UTF-8 in request body", 400)
-                  |> with_cors
-              }
-            }
-            Error(_) ->
-              error_response("Failed to read request body", 400) |> with_cors
-          }
-        }
-        Error(e) -> error_response(e, 401) |> with_cors
-      }
-    }
-
-    http.Get, ["api", "analytics", "actions"] -> {
+    http.Get, ["api", "analytics", "events"] -> {
       case get_auth_header(req) {
         Ok(auth_header) ->
-          http_handlers.get_actions(state, auth_header) |> with_cors
+          http_handlers.get_events(state, auth_header) |> with_cors
         Error(e) -> error_response(e, 401) |> with_cors
       }
     }
@@ -197,9 +178,41 @@ fn handle_request(
       }
     }
 
+    // ML data export (paginated)
+    http.Get, ["api", "analytics", "export"] -> {
+      case get_auth_header(req) {
+        Ok(auth_header) -> {
+          let query_params =
+            req.query
+            |> option.unwrap("")
+            |> uri.parse_query
+            |> result.unwrap([])
+
+          let offset =
+            list.key_find(query_params, "offset")
+            |> result.try(int.parse)
+            |> result.unwrap(0)
+
+          let limit =
+            list.key_find(query_params, "limit")
+            |> result.try(int.parse)
+            |> result.unwrap(1000)
+
+          http_handlers.export_ml_data(state, auth_header, offset, limit)
+          |> with_cors
+        }
+        Error(e) -> error_response(e, 401) |> with_cors
+      }
+    }
+
     // WebSocket endpoint - now uses event bus
     http.Get, ["ws"] -> {
-      ws_handler.handle_websocket(req, state.event_bus)
+      ws_handler.handle_websocket(
+        req,
+        state.event_bus,
+        state.db,
+        state.jwt_secret,
+      )
       |> with_cors
     }
 

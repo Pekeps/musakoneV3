@@ -1,28 +1,43 @@
 /// WebSocket handler for browser client connections
 /// Subscribes to event bus for Mopidy events, sends commands through event bus
-/// No direct knowledge of the Mopidy client
+/// Tracks all user actions to the database for ML training
+import auth/jwt
+import db/tracker
 import event_bus.{type BusMessage, type MopidyEvent}
 import gleam/erlang/process.{type Subject}
 import gleam/http/request.{type Request}
 import gleam/http/response
-import gleam/option.{Some}
+import gleam/int
+import gleam/option.{type Option, None, Some}
 import gleam/string
+import gleam/uri
 import logging
 import mist.{type ResponseData, type WebsocketConnection, type WebsocketMessage}
+import sqlight
 
 /// State for each WebSocket connection
 pub type WsState {
-  WsState(event_bus: Subject(BusMessage), event_subject: Subject(MopidyEvent))
+  WsState(
+    event_bus: Subject(BusMessage),
+    event_subject: Subject(MopidyEvent),
+    db: sqlight.Connection,
+    user_id: Option(Int),
+    context: tracker.PlaybackContext,
+  )
 }
 
 /// WebSocket handler for client connections
 pub fn handle_websocket(
   req: Request(mist.Connection),
   event_bus: Subject(BusMessage),
+  db: sqlight.Connection,
+  jwt_secret: String,
 ) -> response.Response(ResponseData) {
+  let user_id = extract_user_id_from_request(req, jwt_secret)
+
   mist.websocket(
     request: req,
-    on_init: fn(_conn) { init_websocket(event_bus) },
+    on_init: fn(_conn) { init_websocket(event_bus, db, user_id) },
     on_close: fn(state) {
       logging.log(
         logging.Info,
@@ -36,9 +51,61 @@ pub fn handle_websocket(
   )
 }
 
+/// Extract user_id from the JWT token passed as ?token= query parameter
+fn extract_user_id_from_request(
+  req: Request(mist.Connection),
+  jwt_secret: String,
+) -> Option(Int) {
+  let query_string = req.query |> option.unwrap("")
+
+  case uri.parse_query(query_string) {
+    Ok(params) -> {
+      case find_param(params, "token") {
+        Some(token) -> {
+          case jwt.from_signed_string(token, jwt_secret) {
+            Ok(jwt_data) -> {
+              case jwt.get_subject(jwt_data) {
+                Ok(subject) -> {
+                  case int.parse(subject) {
+                    Ok(uid) -> {
+                      logging.log(
+                        logging.Debug,
+                        "WS authenticated: user_id=" <> int.to_string(uid),
+                      )
+                      Some(uid)
+                    }
+                    Error(_) -> None
+                  }
+                }
+                Error(_) -> None
+              }
+            }
+            Error(_) -> None
+          }
+        }
+        None -> None
+      }
+    }
+    Error(_) -> None
+  }
+}
+
+fn find_param(params: List(#(String, String)), key: String) -> Option(String) {
+  case params {
+    [] -> None
+    [#(k, v), ..rest] ->
+      case k == key {
+        True -> Some(v)
+        False -> find_param(rest, key)
+      }
+  }
+}
+
 /// Initialize WebSocket connection and subscribe to event bus
 fn init_websocket(
   bus: Subject(BusMessage),
+  db: sqlight.Connection,
+  user_id: Option(Int),
 ) -> #(WsState, option.Option(process.Selector(MopidyEvent))) {
   logging.log(logging.Info, "New WebSocket connection established")
 
@@ -48,7 +115,14 @@ fn init_websocket(
   // Subscribe to Mopidy events
   event_bus.subscribe(bus, event_subject)
 
-  let state = WsState(event_bus: bus, event_subject: event_subject)
+  let state =
+    WsState(
+      event_bus: bus,
+      event_subject: event_subject,
+      db: db,
+      user_id: user_id,
+      context: tracker.empty_context(),
+    )
 
   // Set up selector to receive events
   let selector =
@@ -68,8 +142,12 @@ fn handle_message(
     // Text message from browser - send command to Mopidy via event bus
     mist.Text(text) -> {
       logging.log(logging.Debug, "Browser -> Backend: " <> text)
+      // Track the user command with playback context
+      tracker.track_command(state.db, state.user_id, state.context, text)
+      // Record outgoing request id→method for response correlation
+      let new_ctx = tracker.record_request(state.context, text)
       event_bus.send_command(state.event_bus, event_bus.SendMessage(text))
-      mist.continue(state)
+      mist.continue(WsState(..state, context: new_ctx))
     }
 
     // Binary message from browser - log and ignore
@@ -81,9 +159,9 @@ fn handle_message(
       mist.continue(state)
     }
 
-    // Event from event bus - forward to browser
+    // Event from event bus - forward to browser, update playback context
     mist.Custom(event) -> {
-      case event {
+      let new_state = case event {
         event_bus.MessageReceived(data) -> {
           logging.log(logging.Debug, "Backend -> Browser: " <> data)
           case mist.send_text_frame(conn, data) {
@@ -95,6 +173,9 @@ fn handle_message(
               )
             }
           }
+          // Update playback context from Mopidy events
+          let new_ctx = tracker.update_context(state.context, data)
+          WsState(..state, context: new_ctx)
         }
 
         event_bus.Error(error) -> {
@@ -102,25 +183,25 @@ fn handle_message(
           let error_json =
             "{\"error\": \"" <> escape_json_string(error) <> "\"}"
           let _ = mist.send_text_frame(conn, error_json)
-          Nil
+          state
         }
 
         event_bus.Connected -> {
           logging.log(logging.Info, "Mopidy connection established")
           let _ =
             mist.send_text_frame(conn, "{\"event\": \"mopidy_connected\"}")
-          Nil
+          state
         }
 
         event_bus.Disconnected -> {
           logging.log(logging.Warning, "Mopidy connection lost")
           let _ =
             mist.send_text_frame(conn, "{\"event\": \"mopidy_disconnected\"}")
-          Nil
+          state
         }
       }
 
-      mist.continue(state)
+      mist.continue(new_state)
     }
 
     // Connection closed

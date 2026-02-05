@@ -1,6 +1,7 @@
 import auth/jwt.{type Jwt, type Verified}
 import auth/service
 import db/queries
+import event_bus.{type BusMessage}
 import gleam/bytes_tree
 import gleam/dynamic/decode
 import gleam/erlang/process.{type Subject}
@@ -9,14 +10,12 @@ import gleam/http/response.{type Response}
 import gleam/int
 import gleam/json
 import gleam/list
-import gleam/option.{type Option}
 import gleam/result
 import gleam/string
 import gleam/time/timestamp
 import logging
 import mist.{type ResponseData}
 import sqlight
-import event_bus.{type BusMessage}
 
 pub type AppState {
   AppState(
@@ -28,19 +27,6 @@ pub type AppState {
 
 pub type LoginRequest {
   LoginRequest(username: String, password: String)
-}
-
-pub type LoginResponse {
-  LoginResponse(token: String, user: queries.User)
-}
-
-pub type ActionRequest {
-  ActionRequest(
-    action_type: String,
-    track_uri: Option(String),
-    track_name: Option(String),
-    metadata: Option(String),
-  )
 }
 
 /// Health check endpoint
@@ -166,11 +152,10 @@ pub fn me(state: AppState, auth_header: String) -> Response(ResponseData) {
   }
 }
 
-/// Log user action
-pub fn log_action(
+/// Get recent events from all tables for a user
+pub fn get_events(
   state: AppState,
   auth_header: String,
-  body: String,
 ) -> Response(ResponseData) {
   case extract_token(auth_header) {
     Ok(token) -> {
@@ -178,34 +163,23 @@ pub fn log_action(
         Ok(jwt_data) -> {
           case get_user_id_from_jwt(jwt_data) {
             Ok(user_id) -> {
-              case parse_action_request(body) {
-                Ok(action) -> {
-                  let timestamp =
-                    timestamp.system_time()
-                    |> timestamp.to_unix_seconds()
-                    |> float.round
+              let playback =
+                queries.get_playback_events(state.db, user_id, 50)
+                |> result.unwrap([])
+              let queue =
+                queries.get_queue_events(state.db, user_id, 50)
+                |> result.unwrap([])
+              let search =
+                queries.get_search_events(state.db, user_id, 50)
+                |> result.unwrap([])
 
-                  case
-                    queries.log_user_action(
-                      state.db,
-                      user_id,
-                      action.action_type,
-                      action.track_uri,
-                      action.track_name,
-                      action.metadata,
-                      timestamp,
-                    )
-                  {
-                    Ok(_) -> {
-                      json.object([#("success", json.bool(True))])
-                      |> json.to_string
-                      |> respond_json(200)
-                    }
-                    Error(_) -> error_response("Failed to log action", 500)
-                  }
-                }
-                Error(e) -> error_response("Invalid request: " <> e, 400)
-              }
+              json.object([
+                #("playback", json.array(playback, encode_playback_event)),
+                #("queue", json.array(queue, encode_queue_event)),
+                #("search", json.array(search, encode_search_event)),
+              ])
+              |> json.to_string
+              |> respond_json(200)
             }
             Error(e) -> error_response("Invalid token: " <> e, 401)
           }
@@ -256,59 +230,6 @@ pub fn get_stats(state: AppState, auth_header: String) -> Response(ResponseData)
   }
 }
 
-/// Get user action history
-pub fn get_actions(
-  state: AppState,
-  auth_header: String,
-) -> Response(ResponseData) {
-  case extract_token(auth_header) {
-    Ok(token) -> {
-      case verify_jwt_token(token, state.jwt_secret) {
-        Ok(jwt_data) -> {
-          case get_user_id_from_jwt(jwt_data) {
-            Ok(user_id) -> {
-              case queries.get_user_actions(state.db, user_id, 100) {
-                Ok(actions) -> {
-                  let actions_json =
-                    json.array(actions, fn(action) {
-                      json.object([
-                        #("id", json.int(action.id)),
-                        #("action_type", json.string(action.action_type)),
-                        #(
-                          "track_uri",
-                          json.nullable(action.track_uri, json.string),
-                        ),
-                        #(
-                          "track_name",
-                          json.nullable(action.track_name, json.string),
-                        ),
-                        #(
-                          "metadata",
-                          json.nullable(action.metadata, json.string),
-                        ),
-                        #("timestamp", json.int(action.timestamp)),
-                      ])
-                    })
-
-                  actions_json
-                  |> json.to_string
-                  |> respond_json(200)
-                }
-                Error(_) -> error_response("Failed to get actions", 500)
-              }
-            }
-            Error(e) -> error_response("Invalid token: " <> e, 401)
-          }
-        }
-        Error(e) -> {
-          error_response("Invalid or expired token: " <> string.inspect(e), 401)
-        }
-      }
-    }
-    Error(e) -> error_response(e, 401)
-  }
-}
-
 // Helper functions
 
 fn parse_login_request(body: String) -> Result(LoginRequest, String) {
@@ -322,22 +243,106 @@ fn parse_login_request(body: String) -> Result(LoginRequest, String) {
   |> result.map_error(fn(e) { "Invalid JSON format" <> string.inspect(e) })
 }
 
-fn parse_action_request(body: String) -> Result(ActionRequest, String) {
-  let decoder = {
-    use action_type <- decode.field("action_type", decode.string)
-    use track_uri <- decode.field("track_uri", decode.optional(decode.string))
-    use track_name <- decode.field("track_name", decode.optional(decode.string))
-    use metadata <- decode.field("metadata", decode.optional(decode.string))
-    decode.success(ActionRequest(
-      action_type:,
-      track_uri:,
-      track_name:,
-      metadata:,
-    ))
-  }
+// ============================================================================
+// JSON ENCODERS FOR EVENT TYPES
+// ============================================================================
 
-  json.parse(body, decoder)
-  |> result.map_error(fn(e) { "Invalid JSON format" <> string.inspect(e) })
+fn encode_playback_event(event: queries.PlaybackEvent) -> json.Json {
+  json.object([
+    #("id", json.int(event.id)),
+    #("user_id", json.int(event.user_id)),
+    #("timestamp_ms", json.int(event.timestamp_ms)),
+    #("event_type", json.string(event.event_type)),
+    #("track_uri", json.nullable(event.track_uri, json.string)),
+    #("track_name", json.nullable(event.track_name, json.string)),
+    #("artist_name", json.nullable(event.artist_name, json.string)),
+    #("album_name", json.nullable(event.album_name, json.string)),
+    #("track_duration_ms", json.nullable(event.track_duration_ms, json.int)),
+    #("position_ms", json.nullable(event.position_ms, json.int)),
+    #("seek_to_ms", json.nullable(event.seek_to_ms, json.int)),
+    #("volume_level", json.nullable(event.volume_level, json.int)),
+    #("playback_flags", json.nullable(event.playback_flags, json.string)),
+  ])
+}
+
+fn encode_queue_event(event: queries.QueueEvent) -> json.Json {
+  json.object([
+    #("id", json.int(event.id)),
+    #("user_id", json.int(event.user_id)),
+    #("timestamp_ms", json.int(event.timestamp_ms)),
+    #("event_type", json.string(event.event_type)),
+    #("track_uris", json.nullable(event.track_uris, json.string)),
+    #("track_names", json.nullable(event.track_names, json.string)),
+    #("at_position", json.nullable(event.at_position, json.int)),
+    #("from_position", json.nullable(event.from_position, json.int)),
+    #("to_position", json.nullable(event.to_position, json.int)),
+    #("queue_length", json.nullable(event.queue_length, json.int)),
+  ])
+}
+
+fn encode_search_event(event: queries.SearchEvent) -> json.Json {
+  json.object([
+    #("id", json.int(event.id)),
+    #("user_id", json.int(event.user_id)),
+    #("timestamp_ms", json.int(event.timestamp_ms)),
+    #("event_type", json.string(event.event_type)),
+    #("query_text", json.nullable(event.query_text, json.string)),
+    #("browse_uri", json.nullable(event.browse_uri, json.string)),
+    #("result_count", json.nullable(event.result_count, json.int)),
+  ])
+}
+
+/// Export all events for ML training (paginated, all users)
+pub fn export_ml_data(
+  state: AppState,
+  auth_header: String,
+  offset: Int,
+  limit: Int,
+) -> Response(ResponseData) {
+  case extract_token(auth_header) {
+    Ok(token) -> {
+      case verify_jwt_token(token, state.jwt_secret) {
+        Ok(_jwt_data) -> {
+          let counts =
+            queries.get_event_counts(state.db)
+            |> result.unwrap([])
+
+          let playback =
+            queries.export_playback_events(state.db, offset, limit)
+            |> result.unwrap([])
+          let queue =
+            queries.export_queue_events(state.db, offset, limit)
+            |> result.unwrap([])
+          let search =
+            queries.export_search_events(state.db, offset, limit)
+            |> result.unwrap([])
+
+          json.object([
+            #(
+              "counts",
+              json.object(
+                list.map(counts, fn(c) {
+                  let #(tbl, cnt) = c
+                  #(tbl, json.int(cnt))
+                }),
+              ),
+            ),
+            #("offset", json.int(offset)),
+            #("limit", json.int(limit)),
+            #("playback", json.array(playback, encode_playback_event)),
+            #("queue", json.array(queue, encode_queue_event)),
+            #("search", json.array(search, encode_search_event)),
+          ])
+          |> json.to_string
+          |> respond_json(200)
+        }
+        Error(e) -> {
+          error_response("Invalid or expired token: " <> string.inspect(e), 401)
+        }
+      }
+    }
+    Error(e) -> error_response(e, 401)
+  }
 }
 
 fn create_jwt_token(

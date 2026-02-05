@@ -177,19 +177,18 @@ export function SearchView() {
     return (
         <div className="flex flex-col h-full overflow-hidden">
             {/* Search input */}
-            <form className="flex gap-2 p-4 border-b border-border-primary shrink-0" onSubmit={handleSubmit} autoComplete="off">
-                <div className="flex-1 flex items-center bg-bg-secondary border border-border-primary px-2 focus-within:border-accent-primary transition-colors duration-150">
+            <form className="flex gap-0 border-b border-border-primary shrink-0" onSubmit={handleSubmit} autoComplete="off">
+                <div className="flex-1 flex items-center bg-bg-secondary border border-border-primary focus-within:border-accent-primary transition-colors duration-150">
                     <Search size={18} className="text-fg-tertiary shrink-0" />
                     <input
                         type="search"
-                        className="flex-1 min-h-12 px-2 bg-transparent border-none text-fg-primary font-mono text-base outline-none placeholder:text-fg-tertiary"
+                        className="flex-1 min-h-12 pl-2 bg-transparent border-none text-fg-primary font-mono text-base outline-none placeholder:text-fg-tertiary"
                         placeholder="Search music..."
                         value={inputValue}
                         onInput={(e) => setInputValue((e.target as HTMLInputElement).value)}
                         autoComplete="off"
                         autoCorrect="off"
                         autoCapitalize="off"
-                        spellCheck={false}
                         enterKeyHint="search"
                         data-form-type="other"
                     />
