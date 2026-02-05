@@ -61,9 +61,9 @@ export function TrackItem({
 
             {icon && <div className="flex items-center justify-center text-fg-secondary shrink-0">{icon}</div>}
 
-            <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                <div className="text-base font-medium text-fg-primary truncate">{track.name}</div>
-                <div className="text-sm text-fg-secondary truncate">{metadata}</div>
+            <div className="flex-1 min-w-0 flex flex-col gap-0">
+                <div className="text-base font-medium text-fg-primary truncate leading-tight">{track.name}</div>
+                <div className="text-sm text-fg-secondary truncate leading-tight">{metadata}</div>
             </div>
 
             {showDuration && track.duration !== undefined && (

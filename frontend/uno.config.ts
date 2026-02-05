@@ -43,7 +43,7 @@ export default defineConfig({
         'btn-control': 'btn w-12 h-12 bg-bg-secondary border border-border-primary text-fg-primary rounded hover:border-accent-primary active:scale-95 active:bg-bg-primary disabled:opacity-30 disabled:cursor-not-allowed',
 
         // Track item
-        'track-item': 'flex items-center gap-2 px-4 py-2 bg-bg-primary border-b-2 border-border-secondary min-h-12 w-full transition-colors duration-150',
+        'track-item': 'flex items-center gap-2 px-4 py-1 bg-bg-primary border-b-2 border-border-secondary min-h-10 w-full transition-colors duration-150',
 
         // In queue indicator
         'in-queue': 'flex items-center justify-center w-8 h-8 text-success shrink-0',
@@ -81,6 +81,8 @@ export default defineConfig({
                 input, textarea, select { font-family: ${theme.font?.mono}; }
                 a { color: #cc0000; text-decoration: none; }
                 a:hover { text-decoration: underline; }
+                * { scrollbar-width: none; }
+                *::-webkit-scrollbar { display: none; }
             `,
         },
     ],
