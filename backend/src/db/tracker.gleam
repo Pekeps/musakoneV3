@@ -418,13 +418,35 @@ fn handle_command(
         Some(ap), Some(ci) -> Some(ap - ci)
         _, _ -> None
       }
+      // Resolve URIs to human-readable names from our context
+      let track_names = case uris {
+        Some(uri_json) -> {
+          case json.parse(uri_json, decode.list(decode.string)) {
+            Ok(uri_list) -> {
+              let resolved_names =
+                list.filter_map(uri_list, fn(uri) {
+                  case dict.get(ctx.uri_names, uri) {
+                    Ok(name) -> Ok(name)
+                    Error(_) -> Error(Nil)
+                  }
+                })
+              case resolved_names {
+                [] -> None
+                names -> Some(json.to_string(json.array(names, json.string)))
+              }
+            }
+            Error(_) -> None
+          }
+        }
+        None -> None
+      }
       log_queue(
         db,
         user_id,
         now,
         event_type,
         uris,
-        None,
+        track_names,
         at_pos,
         relative_pos,
         None,
