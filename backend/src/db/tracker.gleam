@@ -255,9 +255,10 @@ fn update_from_response(
           // result: [{__model__: "Ref", uri, name, type}, ...]
           // Populate uri→name map from browse results
           let names = extract_ref_names(raw)
-          let new_map = list.fold(names, ctx.uri_names, fn(acc, pair) {
-            dict.insert(acc, pair.0, pair.1)
-          })
+          let new_map =
+            list.fold(names, ctx.uri_names, fn(acc, pair) {
+              dict.insert(acc, pair.0, pair.1)
+            })
           PlaybackContext(..ctx, uri_names: new_map)
         }
 
@@ -265,18 +266,20 @@ fn update_from_response(
           // result: [{uri, tracks: [...], artists: [...], albums: [...]}, ...]
           // Populate uri→name map from all result items
           let names = extract_search_result_names(raw)
-          let new_map = list.fold(names, ctx.uri_names, fn(acc, pair) {
-            dict.insert(acc, pair.0, pair.1)
-          })
+          let new_map =
+            list.fold(names, ctx.uri_names, fn(acc, pair) {
+              dict.insert(acc, pair.0, pair.1)
+            })
           PlaybackContext(..ctx, uri_names: new_map)
         }
 
         "core.library.lookup" -> {
           // result: {"uri": [{track}, ...], ...}
           let names = extract_lookup_result_names(raw)
-          let new_map = list.fold(names, ctx.uri_names, fn(acc, pair) {
-            dict.insert(acc, pair.0, pair.1)
-          })
+          let new_map =
+            list.fold(names, ctx.uri_names, fn(acc, pair) {
+              dict.insert(acc, pair.0, pair.1)
+            })
           PlaybackContext(..ctx, uri_names: new_map)
         }
 
@@ -401,7 +404,6 @@ fn handle_command(
     // Every queue event stores track names + queue length + position
     // relative to now-playing. This gives ML: "user moved X closer
     // to now-playing" = positive signal, "user removed Y" = negative.
-
     "core.tracklist.add" -> {
       let uris = extract_string_array_param(req.params, "uris")
       let at_pos = extract_int_param(req.params, "at_position")
@@ -564,12 +566,13 @@ fn handle_command(
       let names = case extract_raw_string_array_param(req.params, "uris") {
         [] -> None
         uris -> {
-          let resolved = list.filter_map(uris, fn(u) {
-            case dict.get(ctx.uri_names, u) {
-              Ok(n) -> Ok(n)
-              Error(_) -> Error(Nil)
-            }
-          })
+          let resolved =
+            list.filter_map(uris, fn(u) {
+              case dict.get(ctx.uri_names, u) {
+                Ok(n) -> Ok(n)
+                Error(_) -> Error(Nil)
+              }
+            })
           case resolved {
             [] -> None
             names -> Some(string.join(names, ", "))
@@ -920,13 +923,19 @@ fn extract_search_result_names(raw: String) -> List(#(String, String)) {
   // Search returns a list of result sets (one per backend)
   let result_set_decoder = {
     use tracks <- decode.optional_field(
-      "tracks", [], decode.list(track_decoder),
+      "tracks",
+      [],
+      decode.list(track_decoder),
     )
     use artists <- decode.optional_field(
-      "artists", [], decode.list(simple_decoder),
+      "artists",
+      [],
+      decode.list(simple_decoder),
     )
     use albums <- decode.optional_field(
-      "albums", [], decode.list(album_decoder),
+      "albums",
+      [],
+      decode.list(album_decoder),
     )
     decode.success(list.flatten([tracks, artists, albums]))
   }
@@ -967,8 +976,7 @@ fn extract_lookup_result_names(raw: String) -> List(#(String, String)) {
       decode.dict(decode.string, decode.list(track_decoder)),
     )
   case json.parse(raw, dict_decoder) {
-    Ok(result_dict) ->
-      dict.values(result_dict) |> list.flatten
+    Ok(result_dict) -> dict.values(result_dict) |> list.flatten
     Error(_) -> []
   }
 }
@@ -1198,54 +1206,52 @@ fn extract_remove_track_info(
       case json.parse(raw, tlid_decoder) {
         Ok(tlids) -> {
           let entries =
-            list.filter(ctx.tracklist, fn(e) {
-              list.contains(tlids, e.tlid)
-            })
+            list.filter(ctx.tracklist, fn(e) { list.contains(tlids, e.tlid) })
           case entries {
             [] -> #(
-              Some(json.to_string(
-                json.array(tlids, fn(t) { json.string(int.to_string(t)) }),
-              )),
+              Some(
+                json.to_string(
+                  json.array(tlids, fn(t) { json.string(int.to_string(t)) }),
+                ),
+              ),
               None,
             )
             _ -> #(
-              Some(json.to_string(
-                json.array(entries, fn(e) { json.string(e.uri) }),
-              )),
-              Some(json.to_string(
-                json.array(entries, fn(e) {
-                  json.string(e.name <> " - " <> e.artist)
-                }),
-              )),
+              Some(
+                json.to_string(
+                  json.array(entries, fn(e) { json.string(e.uri) }),
+                ),
+              ),
+              Some(
+                json.to_string(
+                  json.array(entries, fn(e) {
+                    json.string(e.name <> " - " <> e.artist)
+                  }),
+                ),
+              ),
             )
           }
         }
         Error(_) -> {
           // Try uri criteria
           let uri_decoder =
-            decode.at(
-              ["params", "criteria", "uri"],
-              decode.list(decode.string),
-            )
+            decode.at(["params", "criteria", "uri"], decode.list(decode.string))
           case json.parse(raw, uri_decoder) {
             Ok(uris) -> {
               let entries =
-                list.filter(ctx.tracklist, fn(e) {
-                  list.contains(uris, e.uri)
-                })
+                list.filter(ctx.tracklist, fn(e) { list.contains(uris, e.uri) })
               let names = case entries {
                 [] -> None
                 _ ->
-                  Some(json.to_string(
-                    json.array(entries, fn(e) {
-                      json.string(e.name <> " - " <> e.artist)
-                    }),
-                  ))
+                  Some(
+                    json.to_string(
+                      json.array(entries, fn(e) {
+                        json.string(e.name <> " - " <> e.artist)
+                      }),
+                    ),
+                  )
               }
-              #(
-                Some(json.to_string(json.array(uris, json.string))),
-                names,
-              )
+              #(Some(json.to_string(json.array(uris, json.string))), names)
             }
             Error(_) -> #(None, None)
           }
