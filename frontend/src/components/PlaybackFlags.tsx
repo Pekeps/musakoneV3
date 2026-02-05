@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { PlaybackOptions } from '../services/mopidy';
 import * as mopidy from '../services/mopidy';
-import styles from './PlaybackFlags.module.css';
 
 /**
  * ncmpcpp-style playback flags display
@@ -62,35 +61,35 @@ export function PlaybackFlags() {
     };
 
     if (loading) {
-        return <div className={styles.flags}>[____]</div>;
+        return <div className="font-mono text-xs text-fg-secondary inline-flex items-center select-none">[____]</div>;
     }
 
     return (
-        <div className={styles.flags}>
+        <div className="font-mono text-xs text-fg-secondary inline-flex items-center select-none">
             [
             <button
-                className={`${styles.flag} ${options.repeat ? styles.active : ''}`}
+                className={`playback-flag ${options.repeat ? 'playback-flag-active' : ''}`}
                 onClick={() => toggleOption('repeat')}
                 title="Repeat"
             >
                 {options.repeat ? 'r' : '_'}
             </button>
             <button
-                className={`${styles.flag} ${options.random ? styles.active : ''}`}
+                className={`playback-flag ${options.random ? 'playback-flag-active' : ''}`}
                 onClick={() => toggleOption('random')}
                 title="Random/Shuffle"
             >
                 {options.random ? 'z' : '_'}
             </button>
             <button
-                className={`${styles.flag} ${options.single ? styles.active : ''}`}
+                className={`playback-flag ${options.single ? 'playback-flag-active' : ''}`}
                 onClick={() => toggleOption('single')}
                 title="Single"
             >
                 {options.single ? 's' : '_'}
             </button>
             <button
-                className={`${styles.flag} ${options.consume ? styles.active : ''}`}
+                className={`playback-flag ${options.consume ? 'playback-flag-active' : ''}`}
                 onClick={() => toggleOption('consume')}
                 title="Consume"
             >

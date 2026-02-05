@@ -6,7 +6,6 @@ import * as mopidy from '../services/mopidy';
 import { currentUser, setUser } from '../stores/auth';
 import { connectionStatus } from '../stores/connection';
 import { BottomNav } from './BottomNav';
-import styles from './Layout.module.css';
 import { MiniPlayer } from './MiniPlayer';
 
 interface LayoutProps {
@@ -31,6 +30,19 @@ export function Layout({ children }: LayoutProps) {
         }
     };
 
+    const getStatusDotClass = () => {
+        switch (status) {
+            case 'connected':
+                return 'status-dot-connected';
+            case 'connecting':
+                return 'status-dot-connecting';
+            case 'error':
+                return 'status-dot-error';
+            default:
+                return '';
+        }
+    };
+
     const handleLogout = () => {
         logout();
         setUser(null);
@@ -39,21 +51,26 @@ export function Layout({ children }: LayoutProps) {
     };
 
     return (
-        <div className={styles.container}>
-            <header className={styles.header}>
-                <h1 className={styles.title}>MusakoneV3</h1>
-                <div className={styles.status}>
-                    <div className={`${styles.statusDot} ${styles[status]}`} />
+        <div className="flex flex-col min-h-screen">
+            <header className="sticky top-0 z-102 bg-bg-secondary px-4 py-2 text-center border-b border-border-primary flex justify-between items-center md:static">
+                <h1 className="m-0 text-accent-primary text-base flex-1 text-left">MusakoneV3</h1>
+                <div className="flex items-center gap-2 text-sm">
+                    <div className={`status-dot ${getStatusDotClass()}`} />
                     <span>{getStatusLabel()}</span>
                     {user && (
-                        <button className={styles.logoutBtn} onClick={handleLogout}>
+                        <button
+                            className="ml-3 px-3 py-1 font-mono text-xs text-fg-secondary bg-transparent border border-border-primary cursor-pointer transition-all duration-200 hover:text-accent-primary hover:border-accent-primary active:opacity-70"
+                            onClick={handleLogout}
+                        >
                             Logout
                         </button>
                     )}
                 </div>
             </header>
 
-            <main className={styles.main}>{children}</main>
+            <main className="flex-1 flex flex-col overflow-auto pb-[var(--total-bottom-offset)] md:pb-0">
+                {children}
+            </main>
 
             {location === '/' && <MiniPlayer />}
             <BottomNav />

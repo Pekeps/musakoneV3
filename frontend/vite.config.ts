@@ -1,8 +1,9 @@
 import preact from '@preact/preset-vite';
+import UnoCSS from 'unocss/vite';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-    plugins: [preact()],
+    plugins: [UnoCSS(), preact()],
     resolve: {
         alias: {
             '@': '/src',

@@ -1,6 +1,5 @@
 import type { JSX } from 'preact';
 import { useRef, useState } from 'preact/hooks';
-import styles from './SwipeableItem.module.css';
 
 interface SwipeableItemProps {
     children: JSX.Element;
@@ -17,16 +16,6 @@ interface SwipeableItemProps {
 /**
  * A swipeable item component that triggers actions on left/right swipe
  * Used for track items in Library and Search views
- *
- * @param children - The content to display
- * @param isDisabled - Whether swiping is disabled
- * @param onSwipeLeft - Callback when swiped left past threshold
- * @param onSwipeRight - Callback when swiped right past threshold
- * @param leftLabel - Label to show when swiping left
- * @param rightLabel - Label to show when swiping right
- * @param threshold - Swipe distance threshold in pixels (default: 80)
- * @param className - Additional CSS class for the item
- * @param wrapperClassName - Additional CSS class for the wrapper
  */
 export function SwipeableItem({
     children,
@@ -61,7 +50,6 @@ export function SwipeableItem({
         setSwiping(false);
 
         if (swipeX < -threshold && onSwipeLeft) {
-            // Swipe left - animate and trigger callback
             setAnimating('left');
             setTimeout(() => {
                 onSwipeLeft();
@@ -71,7 +59,6 @@ export function SwipeableItem({
                 }, 150);
             }, 200);
         } else if (swipeX > threshold && onSwipeRight) {
-            // Swipe right - animate and trigger callback
             setAnimating('right');
             setTimeout(() => {
                 onSwipeRight();
@@ -81,18 +68,17 @@ export function SwipeableItem({
                 }, 150);
             }, 200);
         } else {
-            // Reset if threshold not met
             setSwipeX(0);
         }
     };
 
     const getSwipeIndicator = () => {
-        if (animating === 'left') return styles.swipeLeftActive;
-        if (animating === 'right') return styles.swipeRightActive;
-        if (swipeX < -threshold) return styles.swipeLeftActive;
-        if (swipeX > threshold) return styles.swipeRightActive;
-        if (swipeX < -20) return styles.swipeLeft;
-        if (swipeX > 20) return styles.swipeRight;
+        if (animating === 'left') return 'swipe-left-active';
+        if (animating === 'right') return 'swipe-right-active';
+        if (swipeX < -threshold) return 'swipe-left-active';
+        if (swipeX > threshold) return 'swipe-right-active';
+        if (swipeX < -20) return 'swipe-left';
+        if (swipeX > 20) return 'swipe-right';
         return '';
     };
 
@@ -103,13 +89,11 @@ export function SwipeableItem({
     };
 
     return (
-        <div className={`${styles.wrapper} ${getSwipeIndicator()} ${wrapperClassName}`}>
-            {onSwipeLeft && <div className={`${styles.hint} ${styles.hintLeft}`}>{leftLabel}</div>}
-            {onSwipeRight && (
-                <div className={`${styles.hint} ${styles.hintRight}`}>{rightLabel}</div>
-            )}
+        <div className={`relative overflow-hidden w-full ${getSwipeIndicator()} ${wrapperClassName}`}>
+            {onSwipeLeft && <div className="swipe-hint swipe-hint-left">{leftLabel}</div>}
+            {onSwipeRight && <div className="swipe-hint swipe-hint-right">{rightLabel}</div>}
             <div
-                className={`${styles.item} ${animating ? styles.itemAnimating : ''} ${className}`}
+                className={`relative z-1 bg-bg-primary transition-transform duration-150 ${animating ? 'duration-200' : ''} ${className}`}
                 style={{ transform: getTransform() }}
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}

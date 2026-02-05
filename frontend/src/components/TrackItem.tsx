@@ -1,7 +1,6 @@
 import type { JSX } from 'preact';
 import { Music } from 'lucide-preact';
 import { formatDuration } from '../utils/format';
-import styles from './TrackItem.module.css';
 
 export interface TrackItemData {
     name: string;
@@ -54,24 +53,26 @@ export function TrackItem({
 
     return (
         <div
-            className={`${styles.track} ${className}`}
+            className={`track-item ${className}`}
             onClick={onClick}
             onDblClick={onDoubleClick}
         >
-            {leftContent && <div className={styles.leftContent}>{leftContent}</div>}
-            
-            {icon && <div className={styles.icon}>{icon}</div>}
-            
-            <div className={styles.info}>
-                <div className={styles.name}>{track.name}</div>
-                <div className={styles.meta}>{metadata}</div>
+            {leftContent && <div className="flex items-center shrink-0">{leftContent}</div>}
+
+            {icon && <div className="flex items-center justify-center text-fg-secondary shrink-0">{icon}</div>}
+
+            <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                <div className="text-base font-medium text-fg-primary truncate">{track.name}</div>
+                <div className="text-sm text-fg-secondary truncate">{metadata}</div>
             </div>
-            
+
             {showDuration && track.duration !== undefined && (
-                <div className={styles.duration}>{formatDuration(track.duration)}</div>
+                <div className="font-mono text-sm text-fg-secondary shrink-0 min-w-10 text-right">
+                    {formatDuration(track.duration)}
+                </div>
             )}
-            
-            {rightContent && <div className={styles.rightContent}>{rightContent}</div>}
+
+            {rightContent && <div className="flex items-center gap-1 shrink-0">{rightContent}</div>}
         </div>
     );
 }

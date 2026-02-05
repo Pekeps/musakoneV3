@@ -32,7 +32,7 @@ A lightweight, mobile-first web frontend for Mopidy music server. Primary use ca
 - **Routing**: Wouter (~1.5KB) - DO NOT suggest React Router
 - **HTTP**: Native `fetch` - NO axios, ky, or other wrappers
 - **WebSocket**: Native WebSocket API
-- **Styling**: CSS Modules + native CSS - NO Tailwind, Styled Components, or CSS frameworks
+- **Styling**: UnoCSS (utility-first, Tailwind-compatible syntax)
 - **Runtime**: Bun (not Node.js)
 - **Icons**: Lucide (tree-shakeable) - minimal usage
 
@@ -205,10 +205,8 @@ git push origin feature/my-feature
 
 ```typescript
 // frontend/src/components/player/Controls.tsx
-import { h } from 'preact';
 import { useStore } from '@nanostores/preact';
 import { playbackState } from '../../stores/player';
-import styles from './Controls.module.css';
 
 interface ControlsProps {
   className?: string;
@@ -218,7 +216,7 @@ export function Controls({ className }: ControlsProps) {
   const state = useStore(playbackState);
 
   return (
-    <div class={`${styles.controls} ${className || ''}`}>
+    <div className={`flex flex-col gap-2 p-4 ${className || ''}`}>
       {/* implementation */}
     </div>
   );
@@ -284,10 +282,6 @@ export function MiniPlayer() {}
 // Files: kebab-case
 // mini-player.tsx, track-list.tsx
 
-// CSS Modules: camelCase
-.miniPlayer { }
-.trackList { }
-
 // Constants: UPPER_SNAKE_CASE
 const MAX_QUEUE_SIZE = 1000;
 const DEFAULT_VOLUME = 80;
@@ -306,7 +300,6 @@ class Player {
 
 ```typescript
 // 1. External libraries
-import { h } from "preact";
 import { useStore } from "@nanostores/preact";
 
 // 2. Internal services/stores
@@ -318,9 +311,6 @@ import { Button } from "../ui/Button";
 
 // 4. Types
 import type { Track } from "../../types/mopidy";
-
-// 5. Styles
-import styles from "./Player.module.css";
 ```
 
 **Prefer native APIs:**
@@ -346,64 +336,64 @@ const playing = tracks.find((t) => t.isPlaying);
 import { map, find } from "lodash";
 ```
 
-### CSS Module Guidelines
+### UnoCSS Guidelines
 
-**Mobile-first approach:**
+**Use utility classes directly in JSX:**
 
-```css
-/* Default styles for mobile */
-.controls {
-  display: flex;
-  flex-direction: column;
-  padding: 1rem;
-  gap: 0.5rem;
-}
+```tsx
+// ✅ Good - utility classes
+<div className="flex flex-col p-4 gap-2">
+  <button className="min-h-14 min-w-14 font-mono bg-bg-tertiary border border-border-primary">
+    Play
+  </button>
+</div>
 
-.button {
-  min-height: 56px; /* Touch-friendly */
-  min-width: 56px;
-  font-family: "JetBrains Mono", monospace;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-primary);
-}
-
-/* Tablet and up */
-@media (min-width: 768px) {
-  .controls {
-    flex-direction: row;
-    padding: 0.5rem;
-  }
-
-  .button {
-    min-height: 44px;
-    min-width: 44px;
-  }
-}
-
-/* Desktop */
-@media (min-width: 1024px) {
-  .controls {
-    padding: 0.25rem;
-  }
-}
+// ✅ Good - use shortcuts for common patterns (defined in uno.config.ts)
+<button className="btn-icon">
+  <Plus size={18} />
+</button>
 ```
 
-**Terminal aesthetic:**
+**Mobile-first responsive design:**
 
-```css
-:root {
-  /* Colors */
-  --bg-primary: #0a0a0a;
-  --bg-secondary: #141414;
-  --fg-primary: #e0e0e0;
-  --accent-primary: #00ff88;
-  --border-primary: #303030;
+```tsx
+// Default is mobile, use md: and lg: for larger screens
+<div className="flex flex-col md:flex-row p-4 md:p-2 lg:p-1">
+  <button className="min-h-14 md:min-h-11">Click</button>
+</div>
+```
 
-  /* Typography */
-  --font-mono: "JetBrains Mono", "Fira Code", monospace;
-  --font-size-base: 14px;
-  --line-height: 1.6;
-}
+**Theme colors (defined in uno.config.ts):**
+
+```tsx
+// Background colors
+bg-bg-primary    // #000000
+bg-bg-secondary  // #0a0a0a
+bg-bg-tertiary   // #141414
+
+// Foreground/text colors
+text-fg-primary    // #ffffff
+text-fg-secondary  // #b0b0b0
+text-fg-tertiary   // #707070
+
+// Accent colors
+text-accent-primary   // #cc0000
+bg-accent-primary     // #cc0000
+border-accent-primary // #cc0000
+
+// Border colors
+border-border-primary   // #333333
+border-border-secondary // #1a1a1a
+```
+
+**Common shortcuts (defined in uno.config.ts):**
+
+```tsx
+touch-target    // min-h-12 min-w-12 (48px touch target)
+btn             // flex items-center justify-center cursor-pointer transition-all
+btn-icon        // icon button with border and hover states
+track-item      // standard track list item layout
+in-queue        // checkmark indicator for queued items
 ```
 
 ### Testing Strategy
@@ -530,8 +520,8 @@ async function searchTracks(query: string, limit = 50): Promise<Track[]> {
 
 ## What NOT to Do
 
-❌ **Don't suggest**: React, Vue, Angular, Svelte (use Preact)  
-❌ **Don't add**: Tailwind, Bootstrap, Material UI (use CSS Modules)  
+❌ **Don't suggest**: React, Vue, Angular, Svelte (use Preact)
+❌ **Don't add**: Tailwind, Bootstrap, Material UI, CSS Modules (use UnoCSS)
 ❌ **Don't use**: axios, ky, superagent (use native fetch)  
 ❌ **Don't include**: Redux, MobX, Zustand (use Nanostores)  
 ❌ **Don't add**: nginx config (handled externally)  
@@ -558,7 +548,7 @@ async function searchTracks(query: string, limit = 50): Promise<Track[]> {
 ## Quick Reference
 
 - **Design Spec**: See `/DESIGN_SPEC.md` for complete documentation
-- **Stack**: TypeScript + Preact + Nanostores + Wouter + Native APIs + Bun
+- **Stack**: TypeScript + Preact + Nanostores + Wouter + UnoCSS + Native APIs + Bun
 - **Target**: Mobile clubroom music control
 - **Bundle**: < 50KB gzipped
 - **Style**: Terminal/ncmpcpp aesthetic
@@ -572,9 +562,8 @@ async function searchTracks(query: string, limit = 50): Promise<Track[]> {
 ### Create a new component
 
 ```bash
-# Create component file
+# Create component file (no separate CSS file needed with UnoCSS)
 touch frontend/src/components/player/VolumeControl.tsx
-touch frontend/src/components/player/VolumeControl.module.css
 
 # Import and use
 import { VolumeControl } from './components/player/VolumeControl';

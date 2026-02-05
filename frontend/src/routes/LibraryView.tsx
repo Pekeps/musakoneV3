@@ -1,8 +1,7 @@
 import { useStore } from '@nanostores/preact';
-import { Check, ChevronLeft, ChevronRight, Plus } from 'lucide-preact';
+import { ChevronLeft, ChevronRight, Plus } from 'lucide-preact';
 import { useEffect, useMemo } from 'preact/hooks';
-import { SwipeableItem } from '../components/SwipeableItem';
-import { TrackItem } from '../components/TrackItem';
+import { SwipeableTrackItem } from '../components/SwipeableTrackItem';
 import { useAddToQueue } from '../hooks/useAddToQueue';
 import type { LibraryRef } from '../services/mopidy';
 import * as mopidy from '../services/mopidy';
@@ -21,7 +20,6 @@ import {
 } from '../stores/library';
 import { queue } from '../stores/queue';
 import { getLibraryIcon } from '../utils/icons';
-import styles from './LibraryView.module.css';
 
 export function LibraryView() {
     const items = useStore(libraryItems);
@@ -32,7 +30,6 @@ export function LibraryView() {
     const queueTracks = useStore(queue);
     const { addToQueue, addNext } = useAddToQueue();
 
-    // Create a set of URIs already in queue for quick lookup
     const queuedUris = useMemo(() => {
         return new Set(queueTracks.map((t) => t.track.uri));
     }, [queueTracks]);
@@ -56,10 +53,7 @@ export function LibraryView() {
     }, [uri]);
 
     const handleItemClick = async (item: LibraryRef) => {
-        // Prevent navigation while loading
         if (loading) return;
-
-        // Only navigate for non-track items
         if (item.type !== 'track') {
             navigateTo(item.uri, item.name);
         }
@@ -71,7 +65,6 @@ export function LibraryView() {
             if (item.type === 'track') {
                 await addToQueue(item.uri);
             } else {
-                // For directories/albums, lookup all tracks and add them
                 const tracksMap = await mopidy.lookup([item.uri]);
                 const tracks = tracksMap.get(item.uri) || [];
                 if (tracks.length > 0) {
@@ -101,12 +94,12 @@ export function LibraryView() {
     };
 
     return (
-        <div className={styles.container}>
+        <div className="flex flex-col h-full overflow-hidden">
             {/* Breadcrumb navigation */}
-            <div className={styles.breadcrumbs}>
+            <div className="flex items-center gap-1 px-2 py-1 border-b border-border-primary shrink-0 overflow-x-auto bg-bg-secondary">
                 {path.length > 1 && (
                     <button
-                        className={styles.backBtn}
+                        className="flex items-center justify-center w-8 h-8 bg-transparent border-none text-fg-secondary cursor-pointer shrink-0 transition-colors duration-150 hover:text-accent-primary disabled:opacity-50 disabled:cursor-not-allowed"
                         onClick={navigateBack}
                         disabled={loading}
                         aria-label="Go back"
@@ -114,17 +107,17 @@ export function LibraryView() {
                         <ChevronLeft size={20} />
                     </button>
                 )}
-                <div className={styles.breadcrumbList}>
+                <div className="flex items-center gap-0 overflow-x-auto">
                     {path.map((crumb, index) => (
                         <button
                             key={index}
-                            className={`${styles.breadcrumb} ${index === path.length - 1 ? styles.active : ''}`}
+                            className={`flex items-center gap-0.5 px-1.5 py-1 bg-transparent border-none text-sm whitespace-nowrap cursor-pointer transition-colors duration-150 hover:text-accent-primary disabled:cursor-default ${index === path.length - 1 ? 'text-accent-primary' : 'text-fg-secondary'}`}
                             onClick={() => navigateToIndex(index)}
                             disabled={loading || index === path.length - 1}
                         >
                             {crumb.name}
                             {index < path.length - 1 && (
-                                <ChevronRight size={14} className={styles.separator} />
+                                <ChevronRight size={12} className="text-fg-tertiary shrink-0" />
                             )}
                         </button>
                     ))}
@@ -133,44 +126,54 @@ export function LibraryView() {
 
             {/* Content */}
             {loading && items.length === 0 ? (
-                <div className={styles.loading}>Loading...</div>
+                <div className="flex items-center justify-center min-h-[50vh] text-fg-secondary">Loading...</div>
             ) : error ? (
-                <div className={styles.error}>
+                <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4 text-error text-center px-8">
                     <p>{error}</p>
-                    <button className={styles.retryBtn} onClick={() => loadLibrary(uri)}>
+                    <button
+                        className="px-4 py-2 bg-bg-tertiary border-4 border-border-primary text-fg-primary font-mono text-sm cursor-pointer transition-all duration-150 uppercase hover:text-accent-primary hover:border-accent-primary"
+                        onClick={() => loadLibrary(uri)}
+                    >
                         Retry
                     </button>
                 </div>
             ) : items.length === 0 ? (
-                <div className={styles.empty}>
+                <div className="flex flex-col items-center justify-center min-h-[50vh] gap-2 text-fg-secondary text-center px-8">
                     <p>No items found</p>
                 </div>
             ) : (
-                <div className={`${styles.list} ${loading ? styles.listLoading : ''}`}>
+                <div className={`flex-1 overflow-y-auto pb-[var(--total-bottom-offset)] md:pb-0 ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
                     {items.map((item) =>
                         item.type === 'track' ? (
-                            <SwipeableLibraryItem
+                            <SwipeableTrackItem
                                 key={item.uri}
-                                item={item}
+                                track={{ name: item.name, duration: undefined, artists: undefined }}
                                 isQueued={queuedUris.has(item.uri)}
                                 disabled={loading}
-                                onAdd={handleAddToQueue}
-                                onAddNext={handleAddNext}
+                                onAdd={() => handleAddToQueue(item, new Event('click'))}
+                                onAddNext={() => handleAddNext(item, new Event('click'))}
+                                icon={getLibraryIcon(item.type)}
+                                showDuration={false}
+                                customMeta="track"
+                                leftLabel="+ Add Next"
+                                rightLabel="+ Add"
                             />
                         ) : (
                             <div
                                 key={item.uri}
-                                className={`${styles.item} ${styles[item.type]} ${loading ? styles.itemDisabled : ''}`}
+                                className={`flex items-center gap-2 px-4 py-2 bg-bg-primary border-b-2 border-border-secondary min-h-12 w-full cursor-pointer transition-all duration-150 active:bg-bg-tertiary active:translate-y-px ${loading ? 'cursor-not-allowed opacity-60' : ''}`}
                                 onClick={() => handleItemClick(item)}
                             >
-                                <div className={styles.icon}>{getLibraryIcon(item.type)}</div>
-                                <div className={styles.info}>
-                                    <div className={styles.name}>{item.name}</div>
-                                    <div className={styles.type}>{item.type}</div>
+                                <div className={`flex items-center justify-center w-6 h-6 shrink-0 ${item.type === 'directory' || item.type === 'artist' ? 'text-fg-secondary' : item.type === 'album' ? 'text-accent-secondary' : item.type === 'playlist' ? 'text-accent-dim' : 'text-fg-tertiary'}`}>
+                                    {getLibraryIcon(item.type)}
+                                </div>
+                                <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                                    <div className="text-fg-primary truncate">{item.name}</div>
+                                    <div className="text-sm text-fg-tertiary capitalize">{item.type}</div>
                                 </div>
                                 {item.type !== 'directory' && (
                                     <button
-                                        className={styles.addBtn}
+                                        className="btn-icon"
                                         onClick={(e) => handleAddToQueue(item, e)}
                                         aria-label={`Add ${item.name} to queue`}
                                         title="Add to queue"
@@ -178,68 +181,12 @@ export function LibraryView() {
                                         <Plus size={18} />
                                     </button>
                                 )}
-                                <ChevronRight size={18} className={styles.chevron} />
+                                <ChevronRight size={18} className="text-fg-tertiary shrink-0" />
                             </div>
                         )
                     )}
                 </div>
             )}
         </div>
-    );
-}
-
-interface SwipeableLibraryItemProps {
-    item: LibraryRef;
-    isQueued: boolean;
-    disabled: boolean;
-    onAdd: (item: LibraryRef, e: Event) => void;
-    onAddNext: (item: LibraryRef, e: Event) => void;
-}
-
-function SwipeableLibraryItem({
-    item,
-    isQueued,
-    disabled,
-    onAdd,
-    onAddNext,
-}: SwipeableLibraryItemProps) {
-    // Create dummy event for swipe callbacks
-    const dummyEvent = new Event('swipe');
-
-    return (
-        <SwipeableItem
-            isDisabled={isQueued || disabled}
-            onSwipeLeft={() => onAddNext(item, dummyEvent)}
-            onSwipeRight={() => onAdd(item, dummyEvent)}
-            leftLabel="+ Add Next"
-            rightLabel="+ Add to End"
-            threshold={80}
-            className={`${styles.item} ${styles.track} ${disabled ? styles.itemDisabled : ''}`}
-        >
-            <>
-                <TrackItem
-                    track={{ name: item.name, duration: undefined, artists: undefined }}
-                    icon={getLibraryIcon(item.type)}
-                    showDuration={false}
-                    customMeta={item.type}
-                    rightContent={
-                        isQueued ? (
-                            <div className={styles.inQueue} title="Already in queue">
-                                <Check size={18} />
-                            </div>
-                        ) : (
-                            <button
-                                className={styles.addBtn}
-                                onClick={(e) => onAdd(item, e)}
-                                aria-label={`Add ${item.name} to queue`}
-                                title="Add to queue"
-                            >
-                                <Plus size={18} />
-                            </button>
-                        )
-                    }
-                />
-            </>
-        </SwipeableItem>
     );
 }

@@ -12,7 +12,6 @@ import {
 } from '../stores/player';
 import { triggerScrollToCurrent } from '../stores/queue';
 import { formatDuration } from '../utils/format';
-import styles from './MiniPlayer.module.css';
 
 /** How often to sync with backend to correct drift (in seconds) */
 const BACKEND_SYNC_INTERVAL_SECONDS = 10;
@@ -35,7 +34,6 @@ export function MiniPlayer() {
     // Update time position while playing - derive locally, sync periodically
     useEffect(() => {
         if (playing && track) {
-            // Reset sync reference when playback starts
             lastSyncTime.current = Date.now();
             lastSyncPosition.current = position;
 
@@ -51,12 +49,10 @@ export function MiniPlayer() {
                         lastSyncTime.current = now;
                         lastSyncPosition.current = pos;
                     } catch {
-                        // On error, continue with local derivation
                         const derivedPosition = lastSyncPosition.current + elapsed;
                         updatePlaybackState({ timePosition: derivedPosition });
                     }
                 } else {
-                    // Derive position locally based on elapsed time
                     const derivedPosition = lastSyncPosition.current + elapsed;
                     updatePlaybackState({ timePosition: derivedPosition });
                 }
@@ -135,7 +131,6 @@ export function MiniPlayer() {
         try {
             await mopidy.seek(newPosition);
             updatePlaybackState({ timePosition: newPosition });
-            // Reset sync reference after seek
             lastSyncTime.current = Date.now();
             lastSyncPosition.current = newPosition;
         } catch (err) {
@@ -158,20 +153,19 @@ export function MiniPlayer() {
 
     const handleTrackClick = () => {
         if (!track) return;
-        // Wait a bit for navigation and render, then scroll
         setTimeout(() => {
             triggerScrollToCurrent();
         }, 100);
     };
 
     return (
-        <div className={styles.miniPlayer}>
+        <div className="fixed bottom-[var(--bottom-nav-height)] left-0 right-0 bg-bg-tertiary border-t border-border-primary flex flex-col z-99">
             {/* Progress bar */}
-            <div className={styles.progressBar} style={{ '--progress': `${progress}%` }}>
+            <div className="progress-bar" style={{ '--progress': `${progress}%` }}>
                 {track && (
                     <input
                         type="range"
-                        className={styles.progressInput}
+                        className="absolute -top-1.5 left-0 w-full h-4 m-0 opacity-0 cursor-pointer z-1"
                         min={0}
                         max={track.duration || 100}
                         value={position}
@@ -181,32 +175,32 @@ export function MiniPlayer() {
                 )}
             </div>
 
-            <div className={styles.content}>
+            <div className="flex items-center px-2 py-1 gap-1">
                 <div
-                    className={`${styles.trackInfo} ${track ? styles.clickable : ''}`}
+                    className={`flex-1 min-w-0 flex flex-col gap-0.5 ${track ? 'cursor-pointer select-none active:opacity-70' : ''}`}
                     onClick={handleTrackClick}
                 >
                     {track ? (
                         <>
-                            <div className={styles.trackName}>{track.name}</div>
-                            <div className={styles.trackArtist}>
+                            <div className="text-base text-fg-primary truncate">{track.name}</div>
+                            <div className="text-sm text-fg-secondary truncate">
                                 {track.artists?.map((a) => a.name).join(', ') || 'Unknown Artist'}
                             </div>
                         </>
                     ) : (
-                        <div className={styles.noTrack}>No track playing</div>
+                        <div className="text-fg-tertiary italic">No track playing</div>
                     )}
                 </div>
 
                 {track && (
-                    <div className={styles.time}>
+                    <div className="text-xs text-fg-tertiary whitespace-nowrap shrink-0">
                         {formatDuration(position)} / {formatDuration(track.duration)}
                     </div>
                 )}
 
-                <div className={styles.controls}>
+                <div className="flex gap-1 shrink-0">
                     <button
-                        className={styles.controlButton}
+                        className="btn-control"
                         onClick={handlePrevious}
                         disabled={!track}
                         aria-label="Previous track"
@@ -215,7 +209,7 @@ export function MiniPlayer() {
                     </button>
 
                     <button
-                        className={`${styles.controlButton} ${styles.playButton}`}
+                        className={`btn-control ${playing ? '' : ''} bg-accent-primary text-bg-primary border-accent-primary hover:brightness-110 active:brightness-90`}
                         onClick={handlePlayPause}
                         disabled={!track}
                         aria-label={playing ? 'Pause' : 'Play'}
@@ -224,7 +218,7 @@ export function MiniPlayer() {
                     </button>
 
                     <button
-                        className={styles.controlButton}
+                        className="btn-control"
                         onClick={handleNext}
                         disabled={!track}
                         aria-label="Next track"
@@ -233,9 +227,9 @@ export function MiniPlayer() {
                     </button>
                 </div>
 
-                <div className={styles.volumeControl} ref={volumePopupRef}>
+                <div className="relative flex items-center shrink-0" ref={volumePopupRef}>
                     <button
-                        className={`${styles.controlButton} ${volumeOpen ? styles.volumeButtonActive : ''}`}
+                        className={`btn-control ${volumeOpen ? 'border-accent-primary' : ''}`}
                         onClick={() => setVolumeOpen(!volumeOpen)}
                         onKeyDown={(e) => {
                             if (e.key === 'Escape' && volumeOpen) {
@@ -249,17 +243,17 @@ export function MiniPlayer() {
                     </button>
 
                     {volumeOpen && (
-                        <div className={styles.volumePopup}>
+                        <div className="absolute bottom-[calc(100%+0.5rem)] right-0 bg-bg-tertiary border border-border-primary rounded-lg px-2 py-3 flex flex-col items-center gap-2 z-100 shadow-lg">
                             <input
                                 type="range"
-                                className={styles.volumeSlider}
+                                className="volume-slider"
                                 min={0}
                                 max={100}
                                 value={currentVolume}
                                 onChange={handleVolumeChange}
                                 aria-label="Volume"
                             />
-                            <div className={styles.volumeValue}>{currentVolume}%</div>
+                            <div className="text-xs text-fg-secondary min-w-10 text-center">{currentVolume}%</div>
                         </div>
                     )}
                 </div>

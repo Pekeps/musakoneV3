@@ -3,7 +3,6 @@ import { useState } from 'preact/hooks';
 import { useLocation } from 'wouter';
 import { login, register } from '../services/auth';
 import { authError, authLoading, setAuthError, setAuthLoading, setUser } from '../stores/auth';
-import styles from './Login.module.css'; // Reuse same styles
 
 export function Register() {
     const [username, setUsername] = useState('');
@@ -35,13 +34,10 @@ export function Register() {
         setAuthError(null);
 
         try {
-            // Register user
             await register(username, password);
-
-            // Auto-login after registration
             const response = await login(username, password);
             setUser(response.user);
-            setLocation('/'); // Redirect to home after registration
+            setLocation('/');
         } catch (err) {
             setAuthError(err instanceof Error ? err.message : 'Registration failed');
         } finally {
@@ -50,71 +46,80 @@ export function Register() {
     };
 
     return (
-        <div class={styles.loginContainer}>
-            <div class={styles.loginBox}>
-                <h1 class={styles.title}>MusakoneV3</h1>
-                <p class={styles.subtitle}>Create new account</p>
+        <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-bg-primary">
+            <div className="w-full max-w-[400px] p-6 md:p-8 bg-bg-secondary border border-border-primary shadow-lg">
+                <h1 className="m-0 mb-2 text-xl font-semibold text-accent-primary text-center">MusakoneV3</h1>
+                <p className="m-0 mb-8 text-sm text-fg-secondary text-center">Create new account</p>
 
-                {error && <div class={styles.error}>{error}</div>}
+                {error && (
+                    <div className="p-4 text-sm text-error bg-error/10 border border-error rounded-sm text-center mb-4">
+                        {error}
+                    </div>
+                )}
 
-                <form class={styles.form} onSubmit={handleSubmit}>
-                    <div class={styles.formGroup}>
-                        <label class={styles.label} for="username">
+                <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+                    <div className="flex flex-col gap-2">
+                        <label className="text-sm font-medium text-fg-primary" htmlFor="username">
                             Username
                         </label>
                         <input
                             id="username"
                             type="text"
-                            class={styles.input}
+                            className="h-14 md:h-12 px-4 font-mono text-base text-fg-primary bg-bg-primary border border-border-primary outline-none transition-colors duration-200 focus:border-accent-primary placeholder:text-fg-tertiary"
                             value={username}
                             onInput={(e) => setUsername((e.target as HTMLInputElement).value)}
                             placeholder="Choose username"
                             disabled={loading}
-                            autocomplete="username"
+                            autoComplete="username"
                         />
                     </div>
 
-                    <div class={styles.formGroup}>
-                        <label class={styles.label} for="password">
+                    <div className="flex flex-col gap-2">
+                        <label className="text-sm font-medium text-fg-primary" htmlFor="password">
                             Password
                         </label>
                         <input
                             id="password"
                             type="password"
-                            class={styles.input}
+                            className="h-14 md:h-12 px-4 font-mono text-base text-fg-primary bg-bg-primary border border-border-primary outline-none transition-colors duration-200 focus:border-accent-primary placeholder:text-fg-tertiary"
                             value={password}
                             onInput={(e) => setPassword((e.target as HTMLInputElement).value)}
                             placeholder="Choose password"
                             disabled={loading}
-                            autocomplete="new-password"
+                            autoComplete="new-password"
                         />
                     </div>
 
-                    <div class={styles.formGroup}>
-                        <label class={styles.label} for="confirmPassword">
+                    <div className="flex flex-col gap-2">
+                        <label className="text-sm font-medium text-fg-primary" htmlFor="confirmPassword">
                             Confirm Password
                         </label>
                         <input
                             id="confirmPassword"
                             type="password"
-                            class={styles.input}
+                            className="h-14 md:h-12 px-4 font-mono text-base text-fg-primary bg-bg-primary border border-border-primary outline-none transition-colors duration-200 focus:border-accent-primary placeholder:text-fg-tertiary"
                             value={confirmPassword}
-                            onInput={(e) =>
-                                setConfirmPassword((e.target as HTMLInputElement).value)
-                            }
+                            onInput={(e) => setConfirmPassword((e.target as HTMLInputElement).value)}
                             placeholder="Repeat password"
                             disabled={loading}
-                            autocomplete="new-password"
+                            autoComplete="new-password"
                         />
                     </div>
 
-                    <button type="submit" class={styles.button} disabled={loading}>
+                    <button
+                        type="submit"
+                        className="h-14 md:h-12 mt-2 font-mono text-base font-semibold text-bg-primary bg-accent-primary border-none cursor-pointer transition-opacity duration-200 uppercase tracking-wide hover:opacity-90 active:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={loading}
+                    >
                         {loading ? 'Creating account...' : 'Create Account'}
                     </button>
                 </form>
 
-                <p class={styles.link}>
-                    Already have an account? <a href="/login">Sign in</a>
+                <p className="mt-6 text-sm text-fg-secondary text-center">
+                    Already have an account?{' '}
+                    <a href="/login" className="text-accent-primary border-b border-transparent hover:border-accent-primary transition-colors duration-200">
+                        Sign in
+                    </a>
                 </p>
             </div>
         </div>

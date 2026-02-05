@@ -1,7 +1,6 @@
 import { useStore } from '@nanostores/preact';
 import { useEffect } from 'preact/hooks';
 import { Route, Switch } from 'wouter';
-import styles from './App.module.css';
 import { Layout } from './components/Layout';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { LibraryView } from './routes/LibraryView';
@@ -48,7 +47,7 @@ export const App = () => {
     }, [user]);
 
     return (
-        <div className={styles.app}>
+        <div className="min-h-screen flex flex-col bg-bg-secondary text-fg-primary font-mono">
             <Switch>
                 {/* Public routes */}
                 <Route path="/login">

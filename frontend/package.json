@@ -24,8 +24,11 @@
     "@biomejs/biome": "^2.3.11",
     "@preact/preset-vite": "^2.10.2",
     "@types/bun": "latest",
+    "@unocss/preset-mini": "^66.6.0",
+    "@unocss/preset-uno": "^66.6.0",
     "terser": "^5.46.0",
     "typescript": "^5.9.3",
+    "unocss": "^66.6.0",
     "vite": "^7.3.1"
   }
 }

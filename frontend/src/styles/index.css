@@ -1,93 +1,169 @@
+/* Custom variables and styles not covered by UnoCSS */
 :root {
-    /* Colors - ncmpcpp Retro Console Theme (Red/Black) */
-    --bg-primary: #000000;
-    --bg-secondary: #0a0a0a;
-    --bg-tertiary: #141414;
-    --fg-primary: #ffffff;
-    --fg-secondary: #b0b0b0;
-    --fg-tertiary: #707070;
-    --accent-primary: #cc0000;
-    --accent-secondary: #ff3333;
-    --accent-dim: #880000;
-    --border-primary: #333333;
-    --border-secondary: #1a1a1a;
-    --error: #ff4444;
-    --warning: #ffaa00;
-    --success: #00cc44;
-
-    /* Typography */
-    /* 
-   * TO CHANGE FONT: Update --font-family below with any Google Font name from index.html
-   * Examples:
-   *   --font-family: "VT323", monospace;
-   *   --font-family: "IBM Plex Mono", monospace;
-   *   --font-family: "JetBrains Mono", monospace;
-   *   --font-family: "Fira Code", monospace;
-   * Don't forget to add the font link in index.html first!
-   */
-    --font-family: "VT323", monospace;
-    --font-size-base: 16px;
-    --line-height: 1rem;
-
-    /* Spacing */
-    --spacing-xs: 0.25rem;
-    --spacing-sm: 0.5rem;
-    --spacing-md: 1rem;
-    --spacing-lg: 1.5rem;
-    --spacing-xl: 2rem;
-
-    /* Touch Targets - Mobile Priority */
-    --touch-target-min: 48px;
-    --touch-target-desktop: 32px;
-
-    /* Layout */
-    --bottom-nav-height: 48px;
+    /* Layout dimensions (used by fixed positioning) */
+    --bottom-nav-height: 50px;
     --mini-player-height: 40px;
-
-    /* Transitions */
-    --transition-fast: 150ms ease;
+    --total-bottom-offset: calc(var(--bottom-nav-height) + var(--mini-player-height));
 }
 
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
+/* Mobile browser autofill/autocomplete prevention */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 30px #0a0a0a inset !important;
+    -webkit-text-fill-color: #ffffff !important;
+    caret-color: #ffffff;
 }
 
-html {
-    font-size: var(--font-size-base);
+input[type="search"]::-webkit-search-decoration,
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-results-button,
+input[type="search"]::-webkit-search-results-decoration {
+    -webkit-appearance: none;
+    appearance: none;
 }
 
-body {
-    font-family: var(--font-family);
-    line-height: var(--line-height);
-    color: var(--fg-primary);
-    background: var(--bg-primary);
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+/* Bottom nav overscroll protection */
+.bottom-nav-after::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    height: 200px;
+    background: #0a0a0a;
+    z-index: -1;
 }
 
-#app {
-    min-height: 100vh;
-    font-family: var(--font-family);
+/* Mini player progress bar */
+.progress-bar {
+    position: relative;
+    height: 4px;
+    background: #0a0a0a;
+    flex-shrink: 0;
 }
 
-button {
-    font-family: var(--font-family);
+.progress-bar::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: var(--progress, 0%);
+    background: #cc0000;
+    transition: width 0.1s linear;
+}
+
+/* Volume slider vertical styling */
+.volume-slider {
+    -webkit-appearance: slider-vertical;
+    appearance: slider-vertical;
+    writing-mode: bt-lr;
+    width: 4px;
+    height: 120px;
+    background: #0a0a0a;
+    border-radius: 2px;
+    outline: none;
     cursor: pointer;
 }
 
-input,
-textarea,
-select {
-    font-family: var(--font-family);
+.volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: #cc0000;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform 0.15s ease;
 }
 
-a {
-    color: var(--accent-primary);
-    text-decoration: none;
+.volume-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: #cc0000;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
 }
 
-a:hover {
-    text-decoration: underline;
+.volume-slider:hover::-webkit-slider-thumb {
+    transform: scale(1.2);
+}
+
+.volume-slider:hover::-moz-range-thumb {
+    transform: scale(1.2);
+}
+
+/* Swipeable item hints */
+.swipe-hint {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    padding: 0 1rem;
+    font-size: 14px;
+    text-transform: uppercase;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.swipe-hint-left {
+    right: 0;
+    background: #cc0000;
+    color: #000000;
+}
+
+.swipe-hint-right {
+    left: 0;
+    background: #ff3333;
+    color: #000000;
+}
+
+.swipe-left .swipe-hint-left,
+.swipe-left-active .swipe-hint-left {
+    opacity: 1;
+}
+
+.swipe-right .swipe-hint-right,
+.swipe-right-active .swipe-hint-right {
+    opacity: 1;
+}
+
+.swipe-left-active .swipe-hint-left,
+.swipe-right-active .swipe-hint-right {
+    background: #ff3333;
+}
+
+/* Playing indicator animation */
+.playing-indicator span {
+    width: 3px;
+    background: #cc0000;
+    animation: equalizer 0.8s ease-in-out infinite;
+}
+
+.playing-indicator span:nth-child(1) {
+    height: 60%;
+    animation-delay: 0s;
+}
+
+.playing-indicator span:nth-child(2) {
+    height: 100%;
+    animation-delay: 0.2s;
+}
+
+.playing-indicator span:nth-child(3) {
+    height: 40%;
+    animation-delay: 0.4s;
+}
+
+@keyframes equalizer {
+    0%, 100% {
+        transform: scaleY(1);
+    }
+    50% {
+        transform: scaleY(0.5);
+    }
 }
