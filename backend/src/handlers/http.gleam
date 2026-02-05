@@ -385,89 +385,71 @@ pub fn get_admin_dashboard(
           json.object([
             #(
               "user_activity",
-              json.array(
-                result.unwrap(user_activity, []),
-                fn(summary) {
-                  let #(username, playback, queue, search, total) = summary
-                  json.object([
-                    #("username", json.string(username)),
-                    #("playback_events", json.int(playback)),
-                    #("queue_events", json.int(queue)),
-                    #("search_events", json.int(search)),
-                    #("total_events", json.int(total)),
-                  ])
-                },
-              ),
+              json.array(result.unwrap(user_activity, []), fn(summary) {
+                let #(username, playback, queue, search, total) = summary
+                json.object([
+                  #("username", json.string(username)),
+                  #("playback_events", json.int(playback)),
+                  #("queue_events", json.int(queue)),
+                  #("search_events", json.int(search)),
+                  #("total_events", json.int(total)),
+                ])
+              }),
             ),
             #(
               "hourly_activity",
-              json.array(
-                result.unwrap(hourly_activity, []),
-                fn(hourly) {
-                  let #(hour, events) = hourly
-                  json.object([
-                    #("hour", json.int(hour)),
-                    #("events", json.int(events)),
-                  ])
-                },
-              ),
+              json.array(result.unwrap(hourly_activity, []), fn(hourly) {
+                let #(hour, events) = hourly
+                json.object([
+                  #("hour", json.int(hour)),
+                  #("events", json.int(events)),
+                ])
+              }),
             ),
             #(
               "popular_tracks",
-              json.array(
-                result.unwrap(popular_tracks, []),
-                fn(track) {
-                  let #(name, artist, plays, users) = track
-                  json.object([
-                    #("name", json.string(name)),
-                    #("artist", json.string(artist)),
-                    #("play_count", json.int(plays)),
-                    #("unique_users", json.int(users)),
-                  ])
-                },
-              ),
+              json.array(result.unwrap(popular_tracks, []), fn(track) {
+                let #(name, artist, plays, users) = track
+                json.object([
+                  #("name", json.string(name)),
+                  #("artist", json.string(artist)),
+                  #("play_count", json.int(plays)),
+                  #("unique_users", json.int(users)),
+                ])
+              }),
             ),
             #(
               "popular_searches",
-              json.array(
-                result.unwrap(popular_searches, []),
-                fn(search) {
-                  let #(query, searches, users) = search
-                  json.object([
-                    #("query", json.string(query)),
-                    #("search_count", json.int(searches)),
-                    #("unique_users", json.int(users)),
-                  ])
-                },
-              ),
+              json.array(result.unwrap(popular_searches, []), fn(search) {
+                let #(query, searches, users) = search
+                json.object([
+                  #("query", json.string(query)),
+                  #("search_count", json.int(searches)),
+                  #("unique_users", json.int(users)),
+                ])
+              }),
             ),
             #(
               "event_distribution",
-              json.array(
-                result.unwrap(event_distribution, []),
-                fn(dist) {
-                  let #(event_type, count) = dist
-                  json.object([
-                    #("event_type", json.string(event_type)),
-                    #("count", json.int(count)),
-                  ])
-                },
-              ),
+              json.array(result.unwrap(event_distribution, []), fn(dist) {
+                let #(event_type, count) = dist
+                json.object([
+                  #("event_type", json.string(event_type)),
+                  #("count", json.int(count)),
+                ])
+              }),
             ),
             #(
               "users",
-              json.array(
-                result.unwrap(all_users, []),
-                fn(user) {
-                  let #(id, username, last_activity, total_events) = user
-                  json.object([
-                    #("id", json.int(id)),
-                    #("username", json.string(username)),
-                    #("last_activity", json.nullable(last_activity, json.int)),
-                    #("total_events", json.int(total_events)),
-                  ])
-                },
-              ),
+              json.array(result.unwrap(all_users, []), fn(user) {
+                let #(id, username, last_activity, total_events) = user
+                json.object([
+                  #("id", json.int(id)),
+                  #("username", json.string(username)),
+                  #("last_activity", json.nullable(last_activity, json.int)),
+                  #("total_events", json.int(total_events)),
+                ])
+              }),
             ),
             #(
               "totals",
