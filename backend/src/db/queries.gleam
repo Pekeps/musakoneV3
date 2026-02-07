@@ -873,3 +873,612 @@ pub fn get_all_users_with_activity(
 
   sqlight.query(sql, db, [], decoder)
 }
+
+// ============================================================================
+// TRACK FEATURES
+// ============================================================================
+
+pub type TrackFeature {
+  TrackFeature(
+    uri: String,
+    name: Option(String),
+    artist_name: Option(String),
+    album_name: Option(String),
+    duration_ms: Option(Int),
+    genre: Option(String),
+    release_date: Option(String),
+    musicbrainz_id: Option(String),
+    track_no: Option(Int),
+    disc_no: Option(Int),
+    first_seen_ms: Int,
+    play_count: Int,
+    skip_count: Int,
+  )
+}
+
+/// Upsert track features. On conflict, update metadata and increment
+/// play_count or skip_count based on flags.
+pub fn upsert_track_features(
+  db: sqlight.Connection,
+  uri: String,
+  name: Option(String),
+  artist_name: Option(String),
+  album_name: Option(String),
+  duration_ms: Option(Int),
+  genre: Option(String),
+  release_date: Option(String),
+  musicbrainz_id: Option(String),
+  track_no: Option(Int),
+  disc_no: Option(Int),
+  now_ms: Int,
+  is_play: Bool,
+  is_skip: Bool,
+) -> Result(Nil, sqlight.Error) {
+  let play_inc = case is_play {
+    True -> 1
+    False -> 0
+  }
+  let skip_inc = case is_skip {
+    True -> 1
+    False -> 0
+  }
+
+  let sql =
+    "INSERT INTO track_features
+     (uri, name, artist_name, album_name, duration_ms, genre, release_date,
+      musicbrainz_id, track_no, disc_no, first_seen_ms, play_count, skip_count)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(uri) DO UPDATE SET
+       name = COALESCE(excluded.name, track_features.name),
+       artist_name = COALESCE(excluded.artist_name, track_features.artist_name),
+       album_name = COALESCE(excluded.album_name, track_features.album_name),
+       duration_ms = COALESCE(excluded.duration_ms, track_features.duration_ms),
+       genre = COALESCE(excluded.genre, track_features.genre),
+       release_date = COALESCE(excluded.release_date, track_features.release_date),
+       musicbrainz_id = COALESCE(excluded.musicbrainz_id, track_features.musicbrainz_id),
+       track_no = COALESCE(excluded.track_no, track_features.track_no),
+       disc_no = COALESCE(excluded.disc_no, track_features.disc_no),
+       play_count = track_features.play_count + excluded.play_count,
+       skip_count = track_features.skip_count + excluded.skip_count"
+
+  sqlight.query(
+    sql,
+    db,
+    [
+      sqlight.text(uri),
+      sqlight.nullable(sqlight.text, name),
+      sqlight.nullable(sqlight.text, artist_name),
+      sqlight.nullable(sqlight.text, album_name),
+      sqlight.nullable(sqlight.int, duration_ms),
+      sqlight.nullable(sqlight.text, genre),
+      sqlight.nullable(sqlight.text, release_date),
+      sqlight.nullable(sqlight.text, musicbrainz_id),
+      sqlight.nullable(sqlight.int, track_no),
+      sqlight.nullable(sqlight.int, disc_no),
+      sqlight.int(now_ms),
+      sqlight.int(play_inc),
+      sqlight.int(skip_inc),
+    ],
+    decode.dynamic,
+  )
+  |> result.map(fn(_) { Nil })
+}
+
+/// Get track features for a single track
+pub fn get_track_features(
+  db: sqlight.Connection,
+  uri: String,
+) -> Result(List(TrackFeature), sqlight.Error) {
+  let sql =
+    "SELECT uri, name, artist_name, album_name, duration_ms, genre,
+       release_date, musicbrainz_id, track_no, disc_no,
+       first_seen_ms, play_count, skip_count
+     FROM track_features WHERE uri = ?"
+
+  sqlight.query(sql, db, [sqlight.text(uri)], track_feature_decoder())
+}
+
+fn track_feature_decoder() -> decode.Decoder(TrackFeature) {
+  use uri <- decode.field(0, decode.string)
+  use name <- decode.field(1, decode.optional(decode.string))
+  use artist_name <- decode.field(2, decode.optional(decode.string))
+  use album_name <- decode.field(3, decode.optional(decode.string))
+  use duration_ms <- decode.field(4, decode.optional(decode.int))
+  use genre <- decode.field(5, decode.optional(decode.string))
+  use release_date <- decode.field(6, decode.optional(decode.string))
+  use musicbrainz_id <- decode.field(7, decode.optional(decode.string))
+  use track_no <- decode.field(8, decode.optional(decode.int))
+  use disc_no <- decode.field(9, decode.optional(decode.int))
+  use first_seen_ms <- decode.field(10, decode.int)
+  use play_count <- decode.field(11, decode.int)
+  use skip_count <- decode.field(12, decode.int)
+  decode.success(TrackFeature(
+    uri:,
+    name:,
+    artist_name:,
+    album_name:,
+    duration_ms:,
+    genre:,
+    release_date:,
+    musicbrainz_id:,
+    track_no:,
+    disc_no:,
+    first_seen_ms:,
+    play_count:,
+    skip_count:,
+  ))
+}
+
+// ============================================================================
+// USER-TRACK AFFINITY
+// ============================================================================
+
+pub type UserTrackAffinity {
+  UserTrackAffinity(
+    user_id: Int,
+    track_uri: String,
+    play_count: Int,
+    total_listen_ms: Int,
+    avg_listen_pct: Float,
+    queue_add_count: Int,
+    queue_move_closer: Int,
+    skip_count: Int,
+    early_skip_count: Int,
+    queue_remove_count: Int,
+    affinity_score: Float,
+    last_interaction_ms: Int,
+  )
+}
+
+/// Update track affinity from a listen event (track_ended).
+/// Recomputes affinity_score atomically in SQL.
+pub fn update_track_affinity_listen(
+  db: sqlight.Connection,
+  user_id: Int,
+  track_uri: String,
+  listen_ms: Int,
+  listen_pct: Float,
+  is_skip: Bool,
+  is_early_skip: Bool,
+  now_ms: Int,
+) -> Result(Nil, sqlight.Error) {
+  let play_inc = case is_skip {
+    True -> 0
+    False -> 1
+  }
+  let skip_inc = case is_skip {
+    True -> 1
+    False -> 0
+  }
+  let early_skip_inc = case is_early_skip {
+    True -> 1
+    False -> 0
+  }
+
+  // Upsert with atomic affinity_score recomputation.
+  // avg_listen_pct uses incremental average: ((old_avg * old_count) + new) / new_count
+  let sql =
+    "INSERT INTO user_track_affinity
+     (user_id, track_uri, play_count, total_listen_ms, avg_listen_pct,
+      queue_add_count, queue_move_closer, skip_count, early_skip_count,
+      queue_remove_count, affinity_score, last_interaction_ms)
+     VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, ?6, ?7, 0, 0.0, ?8)
+     ON CONFLICT(user_id, track_uri) DO UPDATE SET
+       play_count = user_track_affinity.play_count + ?3,
+       total_listen_ms = user_track_affinity.total_listen_ms + ?4,
+       avg_listen_pct = CASE
+         WHEN (user_track_affinity.play_count + user_track_affinity.skip_count + ?3 + ?6) > 0
+         THEN ((user_track_affinity.avg_listen_pct * (user_track_affinity.play_count + user_track_affinity.skip_count)) + ?5)
+              / (user_track_affinity.play_count + user_track_affinity.skip_count + ?3 + ?6)
+         ELSE ?5
+       END,
+       skip_count = user_track_affinity.skip_count + ?6,
+       early_skip_count = user_track_affinity.early_skip_count + ?7,
+       last_interaction_ms = ?8,
+       affinity_score =
+         ((user_track_affinity.play_count + ?3) * 2.0)
+         + (CASE
+              WHEN (user_track_affinity.play_count + user_track_affinity.skip_count + ?3 + ?6) > 0
+              THEN ((user_track_affinity.avg_listen_pct * (user_track_affinity.play_count + user_track_affinity.skip_count)) + ?5)
+                   / (user_track_affinity.play_count + user_track_affinity.skip_count + ?3 + ?6)
+              ELSE ?5
+            END * 3.0)
+         + (user_track_affinity.queue_add_count * 1.5)
+         + (user_track_affinity.queue_move_closer * 2.0)
+         - ((user_track_affinity.skip_count + ?6) * 1.0)
+         - ((user_track_affinity.early_skip_count + ?7) * 2.0)
+         - (user_track_affinity.queue_remove_count * 1.5)"
+
+  sqlight.query(
+    sql,
+    db,
+    [
+      sqlight.int(user_id),
+      sqlight.text(track_uri),
+      sqlight.int(play_inc),
+      sqlight.int(listen_ms),
+      sqlight.float(listen_pct),
+      sqlight.int(skip_inc),
+      sqlight.int(early_skip_inc),
+      sqlight.int(now_ms),
+    ],
+    decode.dynamic,
+  )
+  |> result.map(fn(_) { Nil })
+}
+
+/// Update track affinity from a queue action (add, remove, move_closer).
+pub fn update_track_affinity_queue(
+  db: sqlight.Connection,
+  user_id: Int,
+  track_uri: String,
+  action: String,
+  now_ms: Int,
+) -> Result(Nil, sqlight.Error) {
+  let #(add_inc, move_inc, remove_inc) = case action {
+    "add" -> #(1, 0, 0)
+    "move_closer" -> #(0, 1, 0)
+    "remove" -> #(0, 0, 1)
+    _ -> #(0, 0, 0)
+  }
+
+  let sql =
+    "INSERT INTO user_track_affinity
+     (user_id, track_uri, play_count, total_listen_ms, avg_listen_pct,
+      queue_add_count, queue_move_closer, skip_count, early_skip_count,
+      queue_remove_count, affinity_score, last_interaction_ms)
+     VALUES (?1, ?2, 0, 0, 0.0, ?3, ?4, 0, 0, ?5, 0.0, ?6)
+     ON CONFLICT(user_id, track_uri) DO UPDATE SET
+       queue_add_count = user_track_affinity.queue_add_count + ?3,
+       queue_move_closer = user_track_affinity.queue_move_closer + ?4,
+       queue_remove_count = user_track_affinity.queue_remove_count + ?5,
+       last_interaction_ms = ?6,
+       affinity_score =
+         (user_track_affinity.play_count * 2.0)
+         + (user_track_affinity.avg_listen_pct * 3.0)
+         + ((user_track_affinity.queue_add_count + ?3) * 1.5)
+         + ((user_track_affinity.queue_move_closer + ?4) * 2.0)
+         - (user_track_affinity.skip_count * 1.0)
+         - (user_track_affinity.early_skip_count * 2.0)
+         - ((user_track_affinity.queue_remove_count + ?5) * 1.5)"
+
+  sqlight.query(
+    sql,
+    db,
+    [
+      sqlight.int(user_id),
+      sqlight.text(track_uri),
+      sqlight.int(add_inc),
+      sqlight.int(move_inc),
+      sqlight.int(remove_inc),
+      sqlight.int(now_ms),
+    ],
+    decode.dynamic,
+  )
+  |> result.map(fn(_) { Nil })
+}
+
+/// Get top tracks by affinity score for a user
+pub fn get_user_track_affinities(
+  db: sqlight.Connection,
+  user_id: Int,
+  limit: Int,
+) -> Result(List(UserTrackAffinity), sqlight.Error) {
+  let sql =
+    "SELECT user_id, track_uri, play_count, total_listen_ms, avg_listen_pct,
+       queue_add_count, queue_move_closer, skip_count, early_skip_count,
+       queue_remove_count, affinity_score, last_interaction_ms
+     FROM user_track_affinity
+     WHERE user_id = ?
+     ORDER BY affinity_score DESC
+     LIMIT ?"
+
+  sqlight.query(
+    sql,
+    db,
+    [sqlight.int(user_id), sqlight.int(limit)],
+    user_track_affinity_decoder(),
+  )
+}
+
+fn user_track_affinity_decoder() -> decode.Decoder(UserTrackAffinity) {
+  use user_id <- decode.field(0, decode.int)
+  use track_uri <- decode.field(1, decode.string)
+  use play_count <- decode.field(2, decode.int)
+  use total_listen_ms <- decode.field(3, decode.int)
+  use avg_listen_pct <- decode.field(4, decode.float)
+  use queue_add_count <- decode.field(5, decode.int)
+  use queue_move_closer <- decode.field(6, decode.int)
+  use skip_count <- decode.field(7, decode.int)
+  use early_skip_count <- decode.field(8, decode.int)
+  use queue_remove_count <- decode.field(9, decode.int)
+  use affinity_score <- decode.field(10, decode.float)
+  use last_interaction_ms <- decode.field(11, decode.int)
+  decode.success(UserTrackAffinity(
+    user_id:,
+    track_uri:,
+    play_count:,
+    total_listen_ms:,
+    avg_listen_pct:,
+    queue_add_count:,
+    queue_move_closer:,
+    skip_count:,
+    early_skip_count:,
+    queue_remove_count:,
+    affinity_score:,
+    last_interaction_ms:,
+  ))
+}
+
+// ============================================================================
+// USER-ARTIST AFFINITY
+// ============================================================================
+
+pub type UserArtistAffinity {
+  UserArtistAffinity(
+    user_id: Int,
+    artist_name: String,
+    play_count: Int,
+    skip_count: Int,
+    total_listen_ms: Int,
+    affinity_score: Float,
+  )
+}
+
+/// Update artist affinity from a listen event.
+/// Score = play_count * 2.0 - skip_count * 1.0 + total_listen_ms / 60000.0
+pub fn update_artist_affinity_listen(
+  db: sqlight.Connection,
+  user_id: Int,
+  artist_name: String,
+  listen_ms: Int,
+  is_skip: Bool,
+) -> Result(Nil, sqlight.Error) {
+  let play_inc = case is_skip {
+    True -> 0
+    False -> 1
+  }
+  let skip_inc = case is_skip {
+    True -> 1
+    False -> 0
+  }
+
+  let sql =
+    "INSERT INTO user_artist_affinity
+     (user_id, artist_name, play_count, skip_count, total_listen_ms, affinity_score)
+     VALUES (?1, ?2, ?3, ?4, ?5, 0.0)
+     ON CONFLICT(user_id, artist_name) DO UPDATE SET
+       play_count = user_artist_affinity.play_count + ?3,
+       skip_count = user_artist_affinity.skip_count + ?4,
+       total_listen_ms = user_artist_affinity.total_listen_ms + ?5,
+       affinity_score =
+         ((user_artist_affinity.play_count + ?3) * 2.0)
+         - ((user_artist_affinity.skip_count + ?4) * 1.0)
+         + ((user_artist_affinity.total_listen_ms + ?5) / 60000.0)"
+
+  sqlight.query(
+    sql,
+    db,
+    [
+      sqlight.int(user_id),
+      sqlight.text(artist_name),
+      sqlight.int(play_inc),
+      sqlight.int(skip_inc),
+      sqlight.int(listen_ms),
+    ],
+    decode.dynamic,
+  )
+  |> result.map(fn(_) { Nil })
+}
+
+/// Get top artists by affinity score for a user
+pub fn get_user_artist_affinities(
+  db: sqlight.Connection,
+  user_id: Int,
+  limit: Int,
+) -> Result(List(UserArtistAffinity), sqlight.Error) {
+  let sql =
+    "SELECT user_id, artist_name, play_count, skip_count,
+       total_listen_ms, affinity_score
+     FROM user_artist_affinity
+     WHERE user_id = ?
+     ORDER BY affinity_score DESC
+     LIMIT ?"
+
+  sqlight.query(
+    sql,
+    db,
+    [sqlight.int(user_id), sqlight.int(limit)],
+    user_artist_affinity_decoder(),
+  )
+}
+
+fn user_artist_affinity_decoder() -> decode.Decoder(UserArtistAffinity) {
+  use user_id <- decode.field(0, decode.int)
+  use artist_name <- decode.field(1, decode.string)
+  use play_count <- decode.field(2, decode.int)
+  use skip_count <- decode.field(3, decode.int)
+  use total_listen_ms <- decode.field(4, decode.int)
+  use affinity_score <- decode.field(5, decode.float)
+  decode.success(UserArtistAffinity(
+    user_id:,
+    artist_name:,
+    play_count:,
+    skip_count:,
+    total_listen_ms:,
+    affinity_score:,
+  ))
+}
+
+// ============================================================================
+// LISTENING SESSIONS
+// ============================================================================
+
+pub type ListeningSession {
+  ListeningSession(
+    id: Int,
+    user_id: Int,
+    started_ms: Int,
+    ended_ms: Option(Int),
+    track_count: Int,
+    hour_of_day: Option(Int),
+    day_of_week: Option(Int),
+    dominant_genre: Option(String),
+  )
+}
+
+/// Create a new listening session, returns the session id
+pub fn create_session(
+  db: sqlight.Connection,
+  user_id: Int,
+  started_ms: Int,
+  hour_of_day: Int,
+  day_of_week: Int,
+) -> Result(Int, sqlight.Error) {
+  let sql =
+    "INSERT INTO listening_sessions
+     (user_id, started_ms, track_count, hour_of_day, day_of_week)
+     VALUES (?, ?, 0, ?, ?)
+     RETURNING id"
+
+  let id_decoder = {
+    use id <- decode.field(0, decode.int)
+    decode.success(id)
+  }
+
+  sqlight.query(
+    sql,
+    db,
+    [
+      sqlight.int(user_id),
+      sqlight.int(started_ms),
+      sqlight.int(hour_of_day),
+      sqlight.int(day_of_week),
+    ],
+    id_decoder,
+  )
+  |> result.map(fn(rows) {
+    case rows {
+      [id, ..] -> id
+      [] -> 0
+    }
+  })
+}
+
+/// Close a listening session by setting ended_ms and track_count
+pub fn close_session(
+  db: sqlight.Connection,
+  session_id: Int,
+  ended_ms: Int,
+  track_count: Int,
+  dominant_genre: Option(String),
+) -> Result(Nil, sqlight.Error) {
+  let sql =
+    "UPDATE listening_sessions
+     SET ended_ms = ?, track_count = ?, dominant_genre = ?
+     WHERE id = ?"
+
+  sqlight.query(
+    sql,
+    db,
+    [
+      sqlight.int(ended_ms),
+      sqlight.int(track_count),
+      sqlight.nullable(sqlight.text, dominant_genre),
+      sqlight.int(session_id),
+    ],
+    decode.dynamic,
+  )
+  |> result.map(fn(_) { Nil })
+}
+
+/// Get listening sessions for a user (newest first)
+pub fn get_user_sessions(
+  db: sqlight.Connection,
+  user_id: Int,
+  limit: Int,
+) -> Result(List(ListeningSession), sqlight.Error) {
+  let sql =
+    "SELECT id, user_id, started_ms, ended_ms, track_count,
+       hour_of_day, day_of_week, dominant_genre
+     FROM listening_sessions
+     WHERE user_id = ?
+     ORDER BY started_ms DESC
+     LIMIT ?"
+
+  sqlight.query(
+    sql,
+    db,
+    [sqlight.int(user_id), sqlight.int(limit)],
+    listening_session_decoder(),
+  )
+}
+
+fn listening_session_decoder() -> decode.Decoder(ListeningSession) {
+  use id <- decode.field(0, decode.int)
+  use user_id <- decode.field(1, decode.int)
+  use started_ms <- decode.field(2, decode.int)
+  use ended_ms <- decode.field(3, decode.optional(decode.int))
+  use track_count <- decode.field(4, decode.int)
+  use hour_of_day <- decode.field(5, decode.optional(decode.int))
+  use day_of_week <- decode.field(6, decode.optional(decode.int))
+  use dominant_genre <- decode.field(7, decode.optional(decode.string))
+  decode.success(ListeningSession(
+    id:,
+    user_id:,
+    started_ms:,
+    ended_ms:,
+    track_count:,
+    hour_of_day:,
+    day_of_week:,
+    dominant_genre:,
+  ))
+}
+
+// ============================================================================
+// SEARCH CONVERSIONS
+// ============================================================================
+
+pub type SearchConversion {
+  SearchConversion(
+    id: Int,
+    user_id: Int,
+    timestamp_ms: Int,
+    query_text: Option(String),
+    result_uri: Option(String),
+    result_position: Option(Int),
+    action: String,
+    time_to_action_ms: Option(Int),
+  )
+}
+
+/// Log a search conversion (search -> queue add within 30s)
+pub fn log_search_conversion(
+  db: sqlight.Connection,
+  user_id: Int,
+  timestamp_ms: Int,
+  query_text: Option(String),
+  result_uri: Option(String),
+  action: String,
+  time_to_action_ms: Option(Int),
+) -> Result(Nil, sqlight.Error) {
+  let sql =
+    "INSERT INTO search_conversions
+     (user_id, timestamp_ms, query_text, result_uri, action, time_to_action_ms)
+     VALUES (?, ?, ?, ?, ?, ?)"
+
+  sqlight.query(
+    sql,
+    db,
+    [
+      sqlight.int(user_id),
+      sqlight.int(timestamp_ms),
+      sqlight.nullable(sqlight.text, query_text),
+      sqlight.nullable(sqlight.text, result_uri),
+      sqlight.text(action),
+      sqlight.nullable(sqlight.int, time_to_action_ms),
+    ],
+    decode.dynamic,
+  )
+  |> result.map(fn(_) { Nil })
+}

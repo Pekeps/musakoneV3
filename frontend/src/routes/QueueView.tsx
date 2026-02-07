@@ -208,7 +208,7 @@ export function QueueView() {
 
     return (
         <div className="flex flex-col h-full overflow-hidden"> 
-            <div className="flex-1 overflow-y-auto pb-[var(--total-bottom-offset)] md:pb-0">
+            <div className="flex-1 overflow-y-auto pb-[var(--mini-player-height)]">
                 {queueTracks.map((item, index) => {
                     const isCurrentTrack = item.tlid === currentTlid || item.track.uri === current?.uri;
                     const isSelected = selectedTlid === item.tlid;

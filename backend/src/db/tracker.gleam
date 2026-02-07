@@ -40,6 +40,12 @@ pub type PlaybackContext {
     artist_name: Option(String),
     album_name: Option(String),
     track_duration_ms: Option(Int),
+    /// Extended metadata for ML track features
+    genre: Option(String),
+    release_date: Option(String),
+    musicbrainz_id: Option(String),
+    track_no: Option(Int),
+    disc_no: Option(Int),
     /// Last known playback position in ms
     position_ms: Option(Int),
     /// Current volume 0-100
@@ -55,6 +61,10 @@ pub type PlaybackContext {
     /// URI → human-readable name map from browse/search/lookup responses.
     /// Used to resolve opaque Mopidy URIs to names for browse/lookup events.
     uri_names: Dict(String, String),
+    /// Last search query text (for search conversion tracking)
+    last_search_query: Option(String),
+    /// Timestamp of last search (for 30s conversion window)
+    last_search_timestamp_ms: Option(Int),
   )
 }
 
@@ -66,6 +76,11 @@ pub fn empty_context() -> PlaybackContext {
     artist_name: None,
     album_name: None,
     track_duration_ms: None,
+    genre: None,
+    release_date: None,
+    musicbrainz_id: None,
+    track_no: None,
+    disc_no: None,
     position_ms: None,
     volume: None,
     playback_state: None,
@@ -73,6 +88,8 @@ pub fn empty_context() -> PlaybackContext {
     tracklist: [],
     current_tlid: None,
     uri_names: dict.new(),
+    last_search_query: None,
+    last_search_timestamp_ms: None,
   )
 }
 
@@ -141,6 +158,11 @@ fn update_from_event(
         artist_name: info.artist,
         album_name: info.album,
         track_duration_ms: info.duration,
+        genre: info.genre,
+        release_date: info.release_date,
+        musicbrainz_id: info.musicbrainz_id,
+        track_no: info.track_no,
+        disc_no: info.disc_no,
         position_ms: Some(0),
         playback_state: Some("playing"),
         current_tlid: tlid,
@@ -207,6 +229,11 @@ fn update_from_response(
             artist_name: info.artist,
             album_name: info.album,
             track_duration_ms: info.duration,
+            genre: info.genre,
+            release_date: info.release_date,
+            musicbrainz_id: info.musicbrainz_id,
+            track_no: info.track_no,
+            disc_no: info.disc_no,
             current_tlid: tlid,
           )
         }
@@ -221,6 +248,11 @@ fn update_from_response(
             artist_name: info.artist,
             album_name: info.album,
             track_duration_ms: info.duration,
+            genre: info.genre,
+            release_date: info.release_date,
+            musicbrainz_id: info.musicbrainz_id,
+            track_no: info.track_no,
+            disc_no: info.disc_no,
           )
         }
 
@@ -299,13 +331,13 @@ pub fn track_command(
   user_id: Option(Int),
   ctx: PlaybackContext,
   raw: String,
-) -> Nil {
+) -> PlaybackContext {
   case user_id {
-    None -> Nil
+    None -> ctx
     Some(uid) -> {
       case parse_jsonrpc_request(raw) {
         Ok(req) -> handle_command(db, uid, ctx, req)
-        Error(_) -> Nil
+        Error(_) -> ctx
       }
     }
   }
@@ -347,7 +379,7 @@ fn handle_command(
   user_id: Int,
   ctx: PlaybackContext,
   req: JsonRpcRequest,
-) -> Nil {
+) -> PlaybackContext {
   let now = now_ms()
 
   case req.method {
@@ -355,23 +387,35 @@ fn handle_command(
     // Every playback action gets the full current track context so we
     // know WHAT the user was doing. E.g. "skipped track X at 30s" is a
     // KEY signal: skip at 10s = dislike, full listen + next = like.
-    "core.playback.play" ->
+    "core.playback.play" -> {
       log_playback_with_context(db, user_id, now, "play", ctx)
+      ctx
+    }
 
-    "core.playback.pause" ->
+    "core.playback.pause" -> {
       log_playback_with_context(db, user_id, now, "pause", ctx)
+      ctx
+    }
 
-    "core.playback.resume" ->
+    "core.playback.resume" -> {
       log_playback_with_context(db, user_id, now, "resume", ctx)
+      ctx
+    }
 
-    "core.playback.stop" ->
+    "core.playback.stop" -> {
       log_playback_with_context(db, user_id, now, "stop", ctx)
+      ctx
+    }
 
-    "core.playback.next" ->
+    "core.playback.next" -> {
       log_playback_with_context(db, user_id, now, "next", ctx)
+      ctx
+    }
 
-    "core.playback.previous" ->
+    "core.playback.previous" -> {
       log_playback_with_context(db, user_id, now, "previous", ctx)
+      ctx
+    }
 
     "core.playback.seek" -> {
       let seek_to = extract_int_param(req.params, "time_position")
@@ -389,6 +433,7 @@ fn handle_command(
         seek_to,
         ctx.volume,
       )
+      ctx
     }
 
     "core.mixer.set_volume" -> {
@@ -407,6 +452,7 @@ fn handle_command(
         None,
         vol,
       )
+      ctx
     }
 
     // ── Queue commands ───────────────────────────────────
@@ -415,6 +461,7 @@ fn handle_command(
     // to now-playing" = positive signal, "user removed Y" = negative.
     "core.tracklist.add" -> {
       let uris = extract_string_array_param(req.params, "uris")
+      let uri_list = extract_raw_string_array_param(req.params, "uris")
       let at_pos = extract_int_param(req.params, "at_position")
       let current_index = find_current_index(ctx)
       let queue_len = list.length(ctx.tracklist)
@@ -428,26 +475,21 @@ fn handle_command(
         _, _ -> None
       }
       // Resolve URIs to human-readable names from our context
-      let track_names = case uris {
-        Some(uri_json) -> {
-          case json.parse(uri_json, decode.list(decode.string)) {
-            Ok(uri_list) -> {
-              let resolved_names =
-                list.filter_map(uri_list, fn(uri) {
-                  case dict.get(ctx.uri_names, uri) {
-                    Ok(name) -> Ok(name)
-                    Error(_) -> Error(Nil)
-                  }
-                })
-              case resolved_names {
-                [] -> None
-                names -> Some(json.to_string(json.array(names, json.string)))
+      let track_names = case uri_list {
+        [] -> None
+        _ -> {
+          let resolved_names =
+            list.filter_map(uri_list, fn(uri) {
+              case dict.get(ctx.uri_names, uri) {
+                Ok(name) -> Ok(name)
+                Error(_) -> Error(Nil)
               }
-            }
-            Error(_) -> None
+            })
+          case resolved_names {
+            [] -> None
+            names -> Some(json.to_string(json.array(names, json.string)))
           }
         }
-        None -> None
       }
       log_queue(
         db,
@@ -461,6 +503,46 @@ fn handle_command(
         None,
         Some(queue_len),
       )
+
+      // Queue affinity: update for each added URI
+      list.each(uri_list, fn(uri) {
+        let _ =
+          queries.update_track_affinity_queue(db, user_id, uri, "add", now)
+        Nil
+      })
+
+      // Search conversion: check if within 30s of a search
+      case ctx.last_search_query, ctx.last_search_timestamp_ms {
+        Some(query), Some(search_ts) -> {
+          let elapsed = now - search_ts
+          case elapsed <= 30_000 {
+            True -> {
+              // Log conversion for each URI that was in search results
+              list.each(uri_list, fn(uri) {
+                case dict.get(ctx.uri_names, uri) {
+                  Ok(_) -> {
+                    let _ =
+                      queries.log_search_conversion(
+                        db,
+                        user_id,
+                        now,
+                        Some(query),
+                        Some(uri),
+                        "add",
+                        Some(elapsed),
+                      )
+                    Nil
+                  }
+                  Error(_) -> Nil
+                }
+              })
+              ctx
+            }
+            False -> ctx
+          }
+        }
+        _, _ -> ctx
+      }
     }
 
     "core.tracklist.remove" -> {
@@ -480,6 +562,30 @@ fn handle_command(
         None,
         Some(queue_len),
       )
+
+      // Queue affinity: update for each removed URI
+      case track_uris_json {
+        Some(uris_json) -> {
+          case json.parse(uris_json, decode.list(decode.string)) {
+            Ok(uri_list) -> {
+              list.each(uri_list, fn(uri) {
+                let _ =
+                  queries.update_track_affinity_queue(
+                    db,
+                    user_id,
+                    uri,
+                    "remove",
+                    now,
+                  )
+                Nil
+              })
+            }
+            Error(_) -> Nil
+          }
+        }
+        None -> Nil
+      }
+      ctx
     }
 
     "core.tracklist.clear" -> {
@@ -496,6 +602,7 @@ fn handle_command(
         None,
         Some(queue_len),
       )
+      ctx
     }
 
     "core.tracklist.shuffle" -> {
@@ -512,6 +619,7 @@ fn handle_command(
         None,
         Some(queue_len),
       )
+      ctx
     }
 
     "core.tracklist.move" -> {
@@ -552,33 +660,67 @@ fn handle_command(
         to_rel,
         Some(queue_len),
       )
+
+      // Queue affinity: if moved closer to now-playing, it's a positive signal
+      case track_uris, from_rel, to_rel {
+        Some(uri), Some(from_d), Some(to_d) -> {
+          // Moved closer if absolute distance decreased
+          let moved_closer = int.absolute_value(to_d) < int.absolute_value(from_d)
+          case moved_closer {
+            True -> {
+              let _ =
+                queries.update_track_affinity_queue(
+                  db,
+                  user_id,
+                  uri,
+                  "move_closer",
+                  now,
+                )
+              Nil
+            }
+            False -> Nil
+          }
+        }
+        _, _, _ -> Nil
+      }
+      ctx
     }
 
     // ── Playback option toggles ──────────────────────────
     "core.tracklist.set_repeat" -> {
       let val = extract_bool_as_string(req.params, "value")
       log_playback_toggle(db, user_id, now, "set_repeat", val, ctx)
+      ctx
     }
 
     "core.tracklist.set_random" -> {
       let val = extract_bool_as_string(req.params, "value")
       log_playback_toggle(db, user_id, now, "set_random", val, ctx)
+      ctx
     }
 
     "core.tracklist.set_single" -> {
       let val = extract_bool_as_string(req.params, "value")
       log_playback_toggle(db, user_id, now, "set_single", val, ctx)
+      ctx
     }
 
     "core.tracklist.set_consume" -> {
       let val = extract_bool_as_string(req.params, "value")
       log_playback_toggle(db, user_id, now, "set_consume", val, ctx)
+      ctx
     }
 
     // ── Search / browse commands ─────────────────────────
     "core.library.search" -> {
       let query = extract_search_query(req.params)
       log_search(db, user_id, now, "search", query, None, None)
+      // Store search query + timestamp for conversion tracking
+      PlaybackContext(
+        ..ctx,
+        last_search_query: query,
+        last_search_timestamp_ms: Some(now),
+      )
     }
 
     "core.library.browse" -> {
@@ -589,6 +731,7 @@ fn handle_command(
         None -> None
       }
       log_search(db, user_id, now, "browse", name, uri, None)
+      ctx
     }
 
     "core.library.lookup" -> {
@@ -611,10 +754,11 @@ fn handle_command(
         }
       }
       log_search(db, user_id, now, "lookup", names, uri_json, None)
+      ctx
     }
 
     // ── Read-only / state queries → not tracked ──────────
-    _ -> Nil
+    _ -> ctx
   }
 }
 
@@ -1029,6 +1173,11 @@ type TrackInfo {
     artist: Option(String),
     album: Option(String),
     duration: Option(Int),
+    genre: Option(String),
+    release_date: Option(String),
+    musicbrainz_id: Option(String),
+    track_no: Option(Int),
+    disc_no: Option(Int),
   )
 }
 
@@ -1062,12 +1211,45 @@ fn extract_tl_track_info(raw: String) -> TrackInfo {
   let album =
     json.parse(raw, album_decoder) |> result.map(Some) |> result.unwrap(None)
 
+  // Extended metadata
+  let genre =
+    json.parse(raw, decode.at(["tl_track", "track", "genre"], decode.string))
+    |> result.map(Some)
+    |> result.unwrap(None)
+  let release_date =
+    json.parse(raw, decode.at(["tl_track", "track", "date"], decode.string))
+    |> result.map(Some)
+    |> result.unwrap(None)
+  let musicbrainz_id =
+    json.parse(
+      raw,
+      decode.at(["tl_track", "track", "musicbrainz_id"], decode.string),
+    )
+    |> result.map(Some)
+    |> result.unwrap(None)
+  let track_no =
+    json.parse(
+      raw,
+      decode.at(["tl_track", "track", "track_no"], decode.int),
+    )
+    |> result.map(Some)
+    |> result.unwrap(None)
+  let disc_no =
+    json.parse(raw, decode.at(["tl_track", "track", "disc_no"], decode.int))
+    |> result.map(Some)
+    |> result.unwrap(None)
+
   TrackInfo(
     uri: uri,
     name: name,
     artist: artist,
     album: album,
     duration: duration,
+    genre: genre,
+    release_date: release_date,
+    musicbrainz_id: musicbrainz_id,
+    track_no: track_no,
+    disc_no: disc_no,
   )
 }
 
@@ -1103,12 +1285,42 @@ fn extract_tl_track_info_from_result(raw: String) -> TrackInfo {
   let album =
     json.parse(raw, album_decoder) |> result.map(Some) |> result.unwrap(None)
 
+  // Extended metadata
+  let genre =
+    json.parse(raw, decode.at(["result", "track", "genre"], decode.string))
+    |> result.map(Some)
+    |> result.unwrap(None)
+  let release_date =
+    json.parse(raw, decode.at(["result", "track", "date"], decode.string))
+    |> result.map(Some)
+    |> result.unwrap(None)
+  let musicbrainz_id =
+    json.parse(
+      raw,
+      decode.at(["result", "track", "musicbrainz_id"], decode.string),
+    )
+    |> result.map(Some)
+    |> result.unwrap(None)
+  let track_no =
+    json.parse(raw, decode.at(["result", "track", "track_no"], decode.int))
+    |> result.map(Some)
+    |> result.unwrap(None)
+  let disc_no =
+    json.parse(raw, decode.at(["result", "track", "disc_no"], decode.int))
+    |> result.map(Some)
+    |> result.unwrap(None)
+
   TrackInfo(
     uri: uri,
     name: name,
     artist: artist,
     album: album,
     duration: duration,
+    genre: genre,
+    release_date: release_date,
+    musicbrainz_id: musicbrainz_id,
+    track_no: track_no,
+    disc_no: disc_no,
   )
 }
 
@@ -1143,12 +1355,39 @@ fn extract_track_info_from_result(raw: String) -> TrackInfo {
   let album =
     json.parse(raw, album_decoder) |> result.map(Some) |> result.unwrap(None)
 
+  // Extended metadata
+  let genre =
+    json.parse(raw, decode.at(["result", "genre"], decode.string))
+    |> result.map(Some)
+    |> result.unwrap(None)
+  let release_date =
+    json.parse(raw, decode.at(["result", "date"], decode.string))
+    |> result.map(Some)
+    |> result.unwrap(None)
+  let musicbrainz_id =
+    json.parse(raw, decode.at(["result", "musicbrainz_id"], decode.string))
+    |> result.map(Some)
+    |> result.unwrap(None)
+  let track_no =
+    json.parse(raw, decode.at(["result", "track_no"], decode.int))
+    |> result.map(Some)
+    |> result.unwrap(None)
+  let disc_no =
+    json.parse(raw, decode.at(["result", "disc_no"], decode.int))
+    |> result.map(Some)
+    |> result.unwrap(None)
+
   TrackInfo(
     uri: uri,
     name: name,
     artist: artist,
     album: album,
     duration: duration,
+    genre: genre,
+    release_date: release_date,
+    musicbrainz_id: musicbrainz_id,
+    track_no: track_no,
+    disc_no: disc_no,
   )
 }
 

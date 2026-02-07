@@ -58,13 +58,14 @@ input[type="search"]::-webkit-search-results-decoration {
 
 /* Bottom nav overscroll protection */
 .bottom-nav-after::after {
+    /* keep a minimal overscroll buffer for mobile safe-area, avoid large visible bar */
     content: "";
     position: absolute;
     top: 100%;
     left: 0;
     right: 0;
-    height: 200px;
-    background: #0a0a0a;
+    height: env(safe-area-inset-bottom, 0px);
+    background: transparent;
     z-index: -1;
 }
 

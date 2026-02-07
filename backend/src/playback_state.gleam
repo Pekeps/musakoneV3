@@ -11,8 +11,10 @@
 import db/queries
 import db/tracker
 import event_bus.{type BusMessage, type MopidyEvent}
+import gleam/dict.{type Dict}
 import gleam/erlang/process.{type Subject}
 import gleam/float
+import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -54,6 +56,11 @@ type PendingAttribution {
   PendingAttribution(user_id: Int, method: String, timestamp_ms: Int)
 }
 
+/// Per-user listening session state (in-memory)
+type SessionState {
+  SessionState(session_id: Int, started_ms: Int, last_activity_ms: Int, track_count: Int)
+}
+
 /// Internal actor state
 type State {
   State(
@@ -65,6 +72,8 @@ type State {
     last_volume_log_ms: Int,
     /// Reserved request ID counter for our own Mopidy queries
     next_request_id: Int,
+    /// Active listening sessions per user (user_id -> session)
+    active_sessions: Dict(Int, SessionState),
   )
 }
 
@@ -78,6 +87,9 @@ const attribution_ttl_ms = 2000
 
 /// Base request ID for this actor's own Mopidy queries (avoid browser conflicts)
 const base_request_id = 900_001
+
+/// Session boundary: 5 minutes of inactivity starts a new session
+const session_gap_ms = 300_000
 
 // ─── Public API ────────────────────────────────────────────────────
 
@@ -99,6 +111,7 @@ pub fn start(
       pending_attributions: [],
       last_volume_log_ms: 0,
       next_request_id: base_request_id,
+      active_sessions: dict.new(),
     )
 
   let actor_result =
@@ -331,7 +344,9 @@ fn extract_event_field(raw: String) -> Result(String, Nil) {
 
 import gleam/dynamic/decode
 
-/// Log a state change to the database with attribution
+/// Log a state change to the database with attribution.
+/// Also handles: track features upsert, affinity updates on track_ended,
+/// and listening session management.
 fn log_state_change(state: State, event_type: String) -> State {
   let now = now_ms()
   let ctx = state.context
@@ -369,7 +384,100 @@ fn log_state_change(state: State, event_type: String) -> State {
       )
   }
 
-  State(..state, pending_attributions: remaining_attrs)
+  let state = State(..state, pending_attributions: remaining_attrs)
+
+  // Upsert track features when we have track context
+  let is_track_end = event_type == "track_ended"
+  let is_track_start = event_type == "track_started"
+  case ctx.track_uri {
+    Some(uri) -> {
+      let _ =
+        queries.upsert_track_features(
+          state.db,
+          uri,
+          ctx.track_name,
+          ctx.artist_name,
+          ctx.album_name,
+          ctx.track_duration_ms,
+          ctx.genre,
+          ctx.release_date,
+          ctx.musicbrainz_id,
+          ctx.track_no,
+          ctx.disc_no,
+          now,
+          is_track_start,
+          is_track_end,
+        )
+      Nil
+    }
+    None -> Nil
+  }
+
+  // Affinity updates on track_ended (before context gets wiped)
+  let state = case is_track_end, user_id {
+    True, Some(uid) -> {
+      // Compute listen percentage
+      let #(listen_ms, listen_pct) = case ctx.position_ms, ctx.track_duration_ms
+      {
+        Some(pos), Some(dur) -> {
+          case dur > 0 {
+            True -> #(pos, int.to_float(pos) /. int.to_float(dur))
+            False -> #(pos, 0.0)
+          }
+        }
+        Some(pos), None -> #(pos, 0.0)
+        None, _ -> #(0, 0.0)
+      }
+
+      let is_skip = listen_pct <. 0.8
+      let is_early_skip = listen_pct <. 0.25
+
+      // Update track affinity
+      case ctx.track_uri {
+        Some(uri) -> {
+          let _ =
+            queries.update_track_affinity_listen(
+              state.db,
+              uid,
+              uri,
+              listen_ms,
+              listen_pct,
+              is_skip,
+              is_early_skip,
+              now,
+            )
+          Nil
+        }
+        None -> Nil
+      }
+
+      // Update artist affinity
+      case ctx.artist_name {
+        Some(artist) -> {
+          let _ =
+            queries.update_artist_affinity_listen(
+              state.db,
+              uid,
+              artist,
+              listen_ms,
+              is_skip,
+            )
+          Nil
+        }
+        None -> Nil
+      }
+
+      // Update session track count
+      increment_session_track_count(state, uid)
+    }
+    _, _ -> state
+  }
+
+  // Session management for attributed events
+  case user_id {
+    Some(uid) -> manage_session(state, uid, now)
+    None -> state
+  }
 }
 
 // ─── Attribution matching ──────────────────────────────────────────
@@ -440,6 +548,100 @@ fn prune_attributions(state: State) -> State {
       now - attr.timestamp_ms <= attribution_ttl_ms
     })
   State(..state, pending_attributions: pruned)
+}
+
+// ─── Session management ─────────────────────────────────────────
+
+/// Manage session boundaries for a user. If the gap since last activity
+/// exceeds 5 minutes, close the old session and start a new one.
+fn manage_session(state: State, user_id: Int, now: Int) -> State {
+  case dict.get(state.active_sessions, user_id) {
+    Ok(session) -> {
+      let gap = now - session.last_activity_ms
+      case gap > session_gap_ms {
+        True -> {
+          // Close old session and start new
+          let state = close_user_session(state, user_id, session, now)
+          start_user_session(state, user_id, now)
+        }
+        False -> {
+          // Update last activity
+          let updated =
+            SessionState(..session, last_activity_ms: now)
+          State(
+            ..state,
+            active_sessions: dict.insert(state.active_sessions, user_id, updated),
+          )
+        }
+      }
+    }
+    Error(_) -> {
+      // No active session, start one
+      start_user_session(state, user_id, now)
+    }
+  }
+}
+
+fn start_user_session(state: State, user_id: Int, now: Int) -> State {
+  let hour = { now / 1000 / 3600 } % 24
+  let day = { { now / 1000 / 86_400 } + 4 } % 7
+
+  case queries.create_session(state.db, user_id, now, hour, day) {
+    Ok(session_id) -> {
+      let session =
+        SessionState(
+          session_id: session_id,
+          started_ms: now,
+          last_activity_ms: now,
+          track_count: 0,
+        )
+      State(
+        ..state,
+        active_sessions: dict.insert(state.active_sessions, user_id, session),
+      )
+    }
+    Error(e) -> {
+      logging.log(
+        logging.Error,
+        "Failed to create session: " <> string.inspect(e),
+      )
+      state
+    }
+  }
+}
+
+fn close_user_session(
+  state: State,
+  user_id: Int,
+  session: SessionState,
+  now: Int,
+) -> State {
+  let _ =
+    queries.close_session(
+      state.db,
+      session.session_id,
+      now,
+      session.track_count,
+      None,
+    )
+  State(
+    ..state,
+    active_sessions: dict.delete(state.active_sessions, user_id),
+  )
+}
+
+fn increment_session_track_count(state: State, user_id: Int) -> State {
+  case dict.get(state.active_sessions, user_id) {
+    Ok(session) -> {
+      let updated =
+        SessionState(..session, track_count: session.track_count + 1)
+      State(
+        ..state,
+        active_sessions: dict.insert(state.active_sessions, user_id, updated),
+      )
+    }
+    Error(_) -> state
+  }
 }
 
 // ─── Snapshot builder ──────────────────────────────────────────────

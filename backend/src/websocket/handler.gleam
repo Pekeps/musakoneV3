@@ -149,8 +149,10 @@ fn handle_message(
     // Text message from browser - send command to Mopidy via event bus
     mist.Text(text) -> {
       logging.log(logging.Debug, "Browser -> Backend: " <> text)
-      // Track the user command with playback context
-      tracker.track_command(state.db, state.user_id, state.context, text)
+      // Track the user command with playback context (returns updated ctx
+      // with search query state for conversion tracking)
+      let ctx_after_track =
+        tracker.track_command(state.db, state.user_id, state.context, text)
       // Send attribution hint to playback state actor (authenticated users only)
       case state.user_id {
         Some(uid) -> {
@@ -172,7 +174,7 @@ fn handle_message(
         None -> Nil
       }
       // Record outgoing request id→method for response correlation
-      let new_ctx = tracker.record_request(state.context, text)
+      let new_ctx = tracker.record_request(ctx_after_track, text)
       event_bus.send_command(state.event_bus, event_bus.SendMessage(text))
       mist.continue(WsState(..state, context: new_ctx))
     }

@@ -199,6 +199,28 @@ fn handle_request(
       }
     }
 
+    // User affinity scores (track + artist)
+    http.Get, ["api", "analytics", "affinity"] -> {
+      case get_auth_header(req) {
+        Ok(auth_header) -> {
+          let query_params =
+            req.query
+            |> option.unwrap("")
+            |> uri.parse_query
+            |> result.unwrap([])
+
+          let limit =
+            list.key_find(query_params, "limit")
+            |> result.try(int.parse)
+            |> result.unwrap(20)
+
+          http_handlers.get_user_affinities(state, auth_header, limit)
+          |> with_cors
+        }
+        Error(e) -> error_response(e, 401) |> with_cors
+      }
+    }
+
     // Playback state: current state (no auth — public "now playing")
     http.Get, ["api", "playback", "state"] -> {
       http_handlers.get_playback_state(state)

@@ -567,6 +567,80 @@ fn encode_state_log_entry(entry: queries.PlaybackStateLogEntry) -> json.Json {
   ])
 }
 
+// ============================================================================
+// AFFINITY ENDPOINT
+// ============================================================================
+
+/// Get user track and artist affinities sorted by score
+pub fn get_user_affinities(
+  state: AppState,
+  auth_header: String,
+  limit: Int,
+) -> Response(ResponseData) {
+  case extract_token(auth_header) {
+    Ok(token) -> {
+      case verify_jwt_token(token, state.jwt_secret) {
+        Ok(jwt_data) -> {
+          case get_user_id_from_jwt(jwt_data) {
+            Ok(user_id) -> {
+              let track_affinities =
+                queries.get_user_track_affinities(state.db, user_id, limit)
+                |> result.unwrap([])
+              let artist_affinities =
+                queries.get_user_artist_affinities(state.db, user_id, limit)
+                |> result.unwrap([])
+
+              json.object([
+                #(
+                  "track_affinities",
+                  json.array(track_affinities, encode_track_affinity),
+                ),
+                #(
+                  "artist_affinities",
+                  json.array(artist_affinities, encode_artist_affinity),
+                ),
+              ])
+              |> json.to_string
+              |> respond_json(200)
+            }
+            Error(e) -> error_response("Invalid token: " <> e, 401)
+          }
+        }
+        Error(e) -> {
+          error_response("Invalid or expired token: " <> string.inspect(e), 401)
+        }
+      }
+    }
+    Error(e) -> error_response(e, 401)
+  }
+}
+
+fn encode_track_affinity(a: queries.UserTrackAffinity) -> json.Json {
+  json.object([
+    #("track_uri", json.string(a.track_uri)),
+    #("play_count", json.int(a.play_count)),
+    #("total_listen_ms", json.int(a.total_listen_ms)),
+    #("avg_listen_pct", json.float(a.avg_listen_pct)),
+    #("queue_add_count", json.int(a.queue_add_count)),
+    #("queue_move_closer", json.int(a.queue_move_closer)),
+    #("skip_count", json.int(a.skip_count)),
+    #("early_skip_count", json.int(a.early_skip_count)),
+    #("queue_remove_count", json.int(a.queue_remove_count)),
+    #("affinity_score", json.float(a.affinity_score)),
+    #("last_interaction_ms", json.int(a.last_interaction_ms)),
+  ])
+}
+
+fn encode_artist_affinity(a: queries.UserArtistAffinity) -> json.Json {
+  json.object([
+    #("artist_name", json.string(a.artist_name)),
+    #("play_count", json.int(a.play_count)),
+    #("skip_count", json.int(a.skip_count)),
+    #("total_listen_ms", json.int(a.total_listen_ms)),
+    #("affinity_score", json.float(a.affinity_score)),
+  ])
+}
+
 fn create_jwt_token(
   user: queries.User,
   secret: String,
