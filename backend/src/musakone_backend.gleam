@@ -16,6 +16,7 @@ import gleam/uri
 import handlers/http as http_handlers
 import logging
 import mist
+import playback_state
 import websocket/handler as ws_handler
 import websocket/mopidy_client
 
@@ -65,11 +66,22 @@ pub fn main() {
     |> result.map_error(string.inspect),
   )
 
+  // Start playback state actor (global state tracking with attribution)
+  use ps_actor <- result.try(
+    playback_state.start(db, bus)
+    |> result.map_error(string.inspect),
+  )
+
   logging.log(logging.Info, "")
 
   // Create app state
   let state =
-    http_handlers.AppState(db: db, jwt_secret: jwt_secret, event_bus: bus)
+    http_handlers.AppState(
+      db: db,
+      jwt_secret: jwt_secret,
+      event_bus: bus,
+      playback_state: ps_actor,
+    )
 
   // Start Mist server
   let assert Ok(_) =
@@ -187,6 +199,34 @@ fn handle_request(
       }
     }
 
+    // Playback state: current state (no auth — public "now playing")
+    http.Get, ["api", "playback", "state"] -> {
+      http_handlers.get_playback_state(state)
+      |> with_cors
+    }
+
+    // Playback state: history (auth required)
+    http.Get, ["api", "playback", "history"] -> {
+      case get_auth_header(req) {
+        Ok(auth_header) -> {
+          let query_params =
+            req.query
+            |> option.unwrap("")
+            |> uri.parse_query
+            |> result.unwrap([])
+
+          let limit =
+            list.key_find(query_params, "limit")
+            |> result.try(int.parse)
+            |> result.unwrap(50)
+
+          http_handlers.get_playback_history(state, auth_header, limit)
+          |> with_cors
+        }
+        Error(e) -> error_response(e, 401) |> with_cors
+      }
+    }
+
     // ML data export (paginated)
     http.Get, ["api", "analytics", "export"] -> {
       case get_auth_header(req) {
@@ -221,6 +261,7 @@ fn handle_request(
         state.event_bus,
         state.db,
         state.jwt_secret,
+        state.playback_state,
       )
       |> with_cors
     }

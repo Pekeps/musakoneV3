@@ -5,14 +5,17 @@ import auth/jwt
 import db/tracker
 import event_bus.{type BusMessage, type MopidyEvent}
 import gleam/erlang/process.{type Subject}
+import gleam/float
 import gleam/http/request.{type Request}
 import gleam/http/response
 import gleam/int
 import gleam/option.{type Option, None, Some}
 import gleam/string
+import gleam/time/timestamp
 import gleam/uri
 import logging
 import mist.{type ResponseData, type WebsocketConnection, type WebsocketMessage}
+import playback_state.{type PlaybackStateMessage}
 import sqlight
 
 /// State for each WebSocket connection
@@ -23,6 +26,7 @@ pub type WsState {
     db: sqlight.Connection,
     user_id: Option(Int),
     context: tracker.PlaybackContext,
+    playback_state: Subject(PlaybackStateMessage),
   )
 }
 
@@ -32,12 +36,13 @@ pub fn handle_websocket(
   event_bus: Subject(BusMessage),
   db: sqlight.Connection,
   jwt_secret: String,
+  ps_actor: Subject(PlaybackStateMessage),
 ) -> response.Response(ResponseData) {
   let user_id = extract_user_id_from_request(req, jwt_secret)
 
   mist.websocket(
     request: req,
-    on_init: fn(_conn) { init_websocket(event_bus, db, user_id) },
+    on_init: fn(_conn) { init_websocket(event_bus, db, user_id, ps_actor) },
     on_close: fn(state) {
       logging.log(
         logging.Info,
@@ -106,6 +111,7 @@ fn init_websocket(
   bus: Subject(BusMessage),
   db: sqlight.Connection,
   user_id: Option(Int),
+  ps_actor: Subject(PlaybackStateMessage),
 ) -> #(WsState, option.Option(process.Selector(MopidyEvent))) {
   logging.log(logging.Info, "New WebSocket connection established")
 
@@ -122,6 +128,7 @@ fn init_websocket(
       db: db,
       user_id: user_id,
       context: tracker.empty_context(),
+      playback_state: ps_actor,
     )
 
   // Set up selector to receive events
@@ -144,6 +151,26 @@ fn handle_message(
       logging.log(logging.Debug, "Browser -> Backend: " <> text)
       // Track the user command with playback context
       tracker.track_command(state.db, state.user_id, state.context, text)
+      // Send attribution hint to playback state actor (authenticated users only)
+      case state.user_id {
+        Some(uid) -> {
+          case tracker.extract_method(text) {
+            Ok(method) -> {
+              let now =
+                timestamp.system_time()
+                |> timestamp.to_unix_seconds()
+                |> float.multiply(1000.0)
+                |> float.round
+              process.send(
+                state.playback_state,
+                playback_state.AttributeCommand(uid, method, now),
+              )
+            }
+            Error(_) -> Nil
+          }
+        }
+        None -> Nil
+      }
       // Record outgoing request id→method for response correlation
       let new_ctx = tracker.record_request(state.context, text)
       event_bus.send_command(state.event_bus, event_bus.SendMessage(text))

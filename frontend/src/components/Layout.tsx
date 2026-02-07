@@ -74,11 +74,16 @@ export function Layout({ children }: LayoutProps) {
                 {children}
             </main>
 
-            {/* Row 3: Bottom controls – always in-flow, never overlaps content */}
+            {/* Row 3: Bottom controls – BottomNav is in-flow; MiniPlayer is fixed above it */}
             <div className="bottom-controls">
-                {location === '/' && <MiniPlayer />}
                 <BottomNav />
             </div>
+
+            {location === '/' && (
+                <div style={{ position: 'fixed', left: 0, right: 0, bottom: 'var(--bottom-nav-height)', zIndex: 120 }}>
+                    <MiniPlayer />
+                </div>
+            )}
         </div>
     );
 }

@@ -1,0 +1,468 @@
+/// Global playback state actor — the server-side ground truth of what
+/// Mopidy is actually doing. Subscribes to the event bus, maintains a
+/// PlaybackContext, and logs every state transition to the database.
+///
+/// Key differences from tracker.gleam:
+///   - tracker.gleam logs USER COMMANDS (browser → Mopidy)
+///   - This actor logs MOPIDY STATE CHANGES (events from Mopidy)
+///   - This actor captures ALL changes including external sources
+///   - Attribution links state changes to the user who caused them
+///
+import db/queries
+import db/tracker
+import event_bus.{type BusMessage, type MopidyEvent}
+import gleam/erlang/process.{type Subject}
+import gleam/float
+import gleam/json
+import gleam/list
+import gleam/option.{type Option, None, Some}
+import gleam/otp/actor
+import gleam/string
+import gleam/time/timestamp
+import logging
+import sqlight
+
+// ─── Public types ──────────────────────────────────────────────────
+
+/// Messages the playback state actor can receive
+pub type PlaybackStateMessage {
+  /// Mopidy event from the event bus (via bridge process)
+  MopidyEventReceived(event: MopidyEvent)
+  /// Attribution hint from a WebSocket handler: "user X just sent method Y"
+  AttributeCommand(user_id: Int, method: String, timestamp_ms: Int)
+  /// Synchronous state query (from HTTP handlers)
+  GetState(reply_to: Subject(PlaybackStateSnapshot))
+}
+
+/// Snapshot of the current playback state, returned by GetState
+pub type PlaybackStateSnapshot {
+  PlaybackStateSnapshot(
+    playback_state: Option(String),
+    track_uri: Option(String),
+    track_name: Option(String),
+    artist_name: Option(String),
+    album_name: Option(String),
+    track_duration_ms: Option(Int),
+    position_ms: Option(Int),
+    volume: Option(Int),
+    queue_length: Int,
+  )
+}
+
+/// Pending attribution entry: a user command waiting to be matched
+type PendingAttribution {
+  PendingAttribution(user_id: Int, method: String, timestamp_ms: Int)
+}
+
+/// Internal actor state
+type State {
+  State(
+    db: sqlight.Connection,
+    event_bus: Subject(BusMessage),
+    event_subject: Subject(MopidyEvent),
+    context: tracker.PlaybackContext,
+    pending_attributions: List(PendingAttribution),
+    last_volume_log_ms: Int,
+    /// Reserved request ID counter for our own Mopidy queries
+    next_request_id: Int,
+  )
+}
+
+// ─── Constants ─────────────────────────────────────────────────────
+
+/// Minimum time between volume log entries (ms) to avoid slider-drag floods
+const volume_debounce_ms = 1000
+
+/// TTL for pending attributions (ms) — commands older than this won't match
+const attribution_ttl_ms = 2000
+
+/// Base request ID for this actor's own Mopidy queries (avoid browser conflicts)
+const base_request_id = 900_001
+
+// ─── Public API ────────────────────────────────────────────────────
+
+/// Start the playback state actor.
+/// Subscribes to the event bus and begins tracking Mopidy state.
+pub fn start(
+  db: sqlight.Connection,
+  event_bus: Subject(BusMessage),
+) -> Result(Subject(PlaybackStateMessage), actor.StartError) {
+  // Create a placeholder subject — will be replaced by the bridge's real one
+  let placeholder_subject: Subject(MopidyEvent) = process.new_subject()
+
+  let initial_state =
+    State(
+      db: db,
+      event_bus: event_bus,
+      event_subject: placeholder_subject,
+      context: tracker.empty_context(),
+      pending_attributions: [],
+      last_volume_log_ms: 0,
+      next_request_id: base_request_id,
+    )
+
+  let actor_result =
+    actor.new(initial_state)
+    |> actor.on_message(handle_message)
+    |> actor.start
+
+  case actor_result {
+    Ok(started) -> {
+      let subject = started.data
+
+      // Create bridge process that owns its own subject for receiving events
+      let event_subject = create_event_bridge(subject)
+
+      // Subscribe the bridge's subject to the event bus
+      event_bus.subscribe(event_bus, event_subject)
+
+      logging.log(logging.Info, "✓ Playback state actor started")
+      Ok(subject)
+    }
+    Error(err) -> Error(err)
+  }
+}
+
+// ─── Event bridge ──────────────────────────────────────────────────
+
+/// Create a bridge process that receives MopidyEvents and forwards them
+/// as PlaybackStateMessage to the actor. The subject is created IN the
+/// bridge process so it can receive on it (Gleam/Erlang requirement).
+fn create_event_bridge(
+  actor_subject: Subject(PlaybackStateMessage),
+) -> Subject(MopidyEvent) {
+  // Parent subject to receive the bridge's event subject back
+  let parent_subject: Subject(Subject(MopidyEvent)) = process.new_subject()
+
+  let _ =
+    process.spawn(fn() {
+      // Create the subject IN THIS PROCESS so we can receive on it
+      let event_subject = process.new_subject()
+      // Send it back to the parent
+      process.send(parent_subject, event_subject)
+      // Run the receive loop
+      event_bridge_loop(event_subject, actor_subject)
+    })
+
+  // Wait for the child to send us its subject
+  let assert Ok(event_subject) = process.receive(parent_subject, 5000)
+  event_subject
+}
+
+fn event_bridge_loop(
+  event_subject: Subject(MopidyEvent),
+  actor_subject: Subject(PlaybackStateMessage),
+) -> Nil {
+  case process.receive(event_subject, 60_000) {
+    Ok(event) -> {
+      process.send(actor_subject, MopidyEventReceived(event))
+      event_bridge_loop(event_subject, actor_subject)
+    }
+    Error(_) -> {
+      // Timeout, continue waiting
+      event_bridge_loop(event_subject, actor_subject)
+    }
+  }
+}
+
+// ─── Message handler ───────────────────────────────────────────────
+
+fn handle_message(
+  state: State,
+  message: PlaybackStateMessage,
+) -> actor.Next(State, PlaybackStateMessage) {
+  case message {
+    MopidyEventReceived(event) -> handle_mopidy_event(state, event)
+
+    AttributeCommand(user_id, method, ts) -> {
+      let attr = PendingAttribution(user_id: user_id, method: method, timestamp_ms: ts)
+      let new_pending = [attr, ..state.pending_attributions]
+      actor.continue(State(..state, pending_attributions: new_pending))
+    }
+
+    GetState(reply_to) -> {
+      let snapshot = build_snapshot(state.context)
+      process.send(reply_to, snapshot)
+      actor.continue(state)
+    }
+  }
+}
+
+// ─── Mopidy event handling ─────────────────────────────────────────
+
+fn handle_mopidy_event(
+  state: State,
+  event: MopidyEvent,
+) -> actor.Next(State, PlaybackStateMessage) {
+  case event {
+    event_bus.MessageReceived(data) -> {
+      // Update context (reuse tracker's parsing logic)
+      let new_ctx = tracker.update_context(state.context, data)
+
+      // Check if this is a state-changing event and log it
+      let new_state = process_state_change(
+        State(..state, context: new_ctx),
+        data,
+      )
+
+      actor.continue(new_state)
+    }
+
+    event_bus.Connected -> {
+      logging.log(logging.Info, "Playback state actor: Mopidy connected, querying initial state")
+      query_initial_state(state)
+      actor.continue(state)
+    }
+
+    event_bus.Disconnected -> {
+      logging.log(logging.Warning, "Playback state actor: Mopidy disconnected")
+      actor.continue(state)
+    }
+
+    event_bus.Error(_) -> actor.continue(state)
+  }
+}
+
+/// Send initial state queries to Mopidy using reserved request IDs
+fn query_initial_state(state: State) -> Nil {
+  let queries = [
+    #(base_request_id, "core.playback.get_state"),
+    #(base_request_id + 1, "core.mixer.get_volume"),
+    #(base_request_id + 2, "core.playback.get_current_tl_track"),
+    #(base_request_id + 3, "core.playback.get_time_position"),
+    #(base_request_id + 4, "core.tracklist.get_tl_tracks"),
+  ]
+
+  list.each(queries, fn(q) {
+    let #(id, method) = q
+    let msg =
+      json.object([
+        #("jsonrpc", json.string("2.0")),
+        #("id", json.int(id)),
+        #("method", json.string(method)),
+      ])
+      |> json.to_string
+    event_bus.send_command(state.event_bus, event_bus.SendMessage(msg))
+  })
+}
+
+// ─── State change detection and logging ────────────────────────────
+
+/// Check if a Mopidy message represents a loggable state change.
+/// If so, log it to the playback_state_log table with attribution.
+fn process_state_change(state: State, raw: String) -> State {
+  let event_type = detect_event_type(raw)
+
+  case event_type {
+    None -> {
+      // Not a state-changing event, just clean expired attributions
+      prune_attributions(state)
+    }
+    Some(etype) -> {
+      // Volume debouncing: skip if too recent
+      case etype == "volume" {
+        True -> {
+          let now = now_ms()
+          case now - state.last_volume_log_ms < volume_debounce_ms {
+            True -> prune_attributions(state)
+            False -> {
+              let state = log_state_change(state, etype)
+              State(..state, last_volume_log_ms: now)
+            }
+          }
+        }
+        False -> {
+          // For tracklist_changed, re-query to capture updated queue
+          case etype == "tracklist_changed" {
+            True -> {
+              let id = state.next_request_id
+              let msg =
+                json.object([
+                  #("jsonrpc", json.string("2.0")),
+                  #("id", json.int(id)),
+                  #("method", json.string("core.tracklist.get_tl_tracks")),
+                ])
+                |> json.to_string
+              event_bus.send_command(state.event_bus, event_bus.SendMessage(msg))
+              let state = log_state_change(state, etype)
+              State(..state, next_request_id: id + 1)
+            }
+            False -> log_state_change(state, etype)
+          }
+        }
+      }
+    }
+  }
+}
+
+/// Detect the event type from a raw Mopidy message.
+/// Returns None for non-state-changing messages (responses, etc.)
+fn detect_event_type(raw: String) -> Option(String) {
+  // Check for Mopidy event field
+  case extract_event_field(raw) {
+    Ok("track_playback_started") -> Some("track_started")
+    Ok("track_playback_ended") -> Some("track_ended")
+    Ok("track_playback_paused") -> Some("paused")
+    Ok("track_playback_resumed") -> Some("resumed")
+    Ok("seeked") -> Some("seeked")
+    Ok("volume_changed") -> Some("volume")
+    Ok("tracklist_changed") -> Some("tracklist_changed")
+    _ -> None
+  }
+}
+
+fn extract_event_field(raw: String) -> Result(String, Nil) {
+  // Quick check to avoid parsing non-events
+  case string.contains(raw, "\"event\"") {
+    False -> Error(Nil)
+    True -> {
+      case
+        json.parse(raw, {
+          use event <- decode.field("event", decode.string)
+          decode.success(event)
+        })
+      {
+        Ok(event) -> Ok(event)
+        Error(_) -> Error(Nil)
+      }
+    }
+  }
+}
+
+import gleam/dynamic/decode
+
+/// Log a state change to the database with attribution
+fn log_state_change(state: State, event_type: String) -> State {
+  let now = now_ms()
+  let ctx = state.context
+
+  // Find attribution: match pending commands to this event
+  let #(user_id, remaining_attrs) =
+    find_attribution(state.pending_attributions, event_type, now)
+
+  let queue_length = list.length(ctx.tracklist)
+
+  case
+    queries.log_playback_state_change(
+      state.db,
+      now,
+      event_type,
+      ctx.track_uri,
+      ctx.track_name,
+      ctx.artist_name,
+      ctx.album_name,
+      ctx.track_duration_ms,
+      ctx.position_ms,
+      ctx.volume,
+      case queue_length > 0 {
+        True -> Some(queue_length)
+        False -> None
+      },
+      user_id,
+    )
+  {
+    Ok(_) -> Nil
+    Error(e) ->
+      logging.log(
+        logging.Error,
+        "Failed to log playback state change: " <> string.inspect(e),
+      )
+  }
+
+  State(..state, pending_attributions: remaining_attrs)
+}
+
+// ─── Attribution matching ──────────────────────────────────────────
+
+/// Command-to-event mapping for attribution.
+/// Returns the list of Mopidy methods that could cause a given event.
+fn matching_methods(event_type: String) -> List(String) {
+  case event_type {
+    "track_started" -> [
+      "core.playback.play", "core.playback.next", "core.playback.previous",
+    ]
+    "track_ended" -> [
+      "core.playback.stop", "core.playback.next", "core.playback.previous",
+    ]
+    "paused" -> ["core.playback.pause"]
+    "resumed" -> ["core.playback.resume"]
+    "seeked" -> ["core.playback.seek"]
+    "volume" -> ["core.mixer.set_volume"]
+    "tracklist_changed" -> [
+      "core.tracklist.add", "core.tracklist.remove",
+      "core.tracklist.clear", "core.tracklist.shuffle",
+      "core.tracklist.move",
+    ]
+    _ -> []
+  }
+}
+
+/// Find a matching attribution for an event type.
+/// Returns (user_id, remaining_attributions).
+/// Consumes the matched attribution and prunes expired ones.
+fn find_attribution(
+  attrs: List(PendingAttribution),
+  event_type: String,
+  now: Int,
+) -> #(Option(Int), List(PendingAttribution)) {
+  let methods = matching_methods(event_type)
+
+  // Find first matching attribution that hasn't expired
+  let result =
+    list.fold(attrs, #(None, []), fn(acc, attr) {
+      let #(found, remaining) = acc
+      let expired = now - attr.timestamp_ms > attribution_ttl_ms
+
+      case expired {
+        True -> #(found, remaining)
+        False -> {
+          case found {
+            Some(_) -> #(found, [attr, ..remaining])
+            None -> {
+              case list.contains(methods, attr.method) {
+                True -> #(Some(attr.user_id), remaining)
+                False -> #(found, [attr, ..remaining])
+              }
+            }
+          }
+        }
+      }
+    })
+
+  #(result.0, list.reverse(result.1))
+}
+
+/// Remove expired attributions
+fn prune_attributions(state: State) -> State {
+  let now = now_ms()
+  let pruned =
+    list.filter(state.pending_attributions, fn(attr) {
+      now - attr.timestamp_ms <= attribution_ttl_ms
+    })
+  State(..state, pending_attributions: pruned)
+}
+
+// ─── Snapshot builder ──────────────────────────────────────────────
+
+fn build_snapshot(ctx: tracker.PlaybackContext) -> PlaybackStateSnapshot {
+  PlaybackStateSnapshot(
+    playback_state: ctx.playback_state,
+    track_uri: ctx.track_uri,
+    track_name: ctx.track_name,
+    artist_name: ctx.artist_name,
+    album_name: ctx.album_name,
+    track_duration_ms: ctx.track_duration_ms,
+    position_ms: ctx.position_ms,
+    volume: ctx.volume,
+    queue_length: list.length(ctx.tracklist),
+  )
+}
+
+// ─── Helpers ───────────────────────────────────────────────────────
+
+fn now_ms() -> Int {
+  timestamp.system_time()
+  |> timestamp.to_unix_seconds()
+  |> float.multiply(1000.0)
+  |> float.round
+}

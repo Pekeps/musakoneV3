@@ -15,6 +15,7 @@ import gleam/string
 import gleam/time/timestamp
 import logging
 import mist.{type ResponseData}
+import playback_state.{type PlaybackStateMessage, type PlaybackStateSnapshot}
 import sqlight
 
 pub type AppState {
@@ -22,6 +23,7 @@ pub type AppState {
     db: sqlight.Connection,
     jwt_secret: String,
     event_bus: Subject(BusMessage),
+    playback_state: Subject(PlaybackStateMessage),
   )
 }
 
@@ -381,6 +383,14 @@ pub fn get_admin_dashboard(
           let event_distribution = queries.get_event_type_distribution(state.db)
           let all_users = queries.get_all_users_with_activity(state.db)
           let total_counts = queries.get_event_counts(state.db)
+          let now_playing =
+            process.call(
+              state.playback_state,
+              2000,
+              playback_state.GetState,
+            )
+          let state_timeline =
+            queries.get_playback_state_history(state.db, 20)
 
           json.object([
             #(
@@ -460,6 +470,14 @@ pub fn get_admin_dashboard(
                 }),
               ),
             ),
+            #("now_playing", encode_playback_snapshot(now_playing)),
+            #(
+              "state_timeline",
+              json.array(
+                result.unwrap(state_timeline, []),
+                encode_state_log_entry,
+              ),
+            ),
           ])
           |> json.to_string
           |> respond_json(200)
@@ -471,6 +489,82 @@ pub fn get_admin_dashboard(
     }
     Error(e) -> error_response(e, 401)
   }
+}
+
+// ============================================================================
+// PLAYBACK STATE ENDPOINTS
+// ============================================================================
+
+/// Get current playback state — no auth required (public "now playing")
+pub fn get_playback_state(state: AppState) -> Response(ResponseData) {
+  let snapshot =
+    process.call(state.playback_state, 2000, playback_state.GetState)
+
+  encode_playback_snapshot(snapshot)
+  |> json.to_string
+  |> respond_json(200)
+}
+
+/// Get playback state history — auth required
+pub fn get_playback_history(
+  state: AppState,
+  auth_header: String,
+  limit: Int,
+) -> Response(ResponseData) {
+  case extract_token(auth_header) {
+    Ok(token) -> {
+      case verify_jwt_token(token, state.jwt_secret) {
+        Ok(_jwt_data) -> {
+          case queries.get_playback_state_history(state.db, limit) {
+            Ok(entries) -> {
+              json.object([
+                #("entries", json.array(entries, encode_state_log_entry)),
+                #("limit", json.int(limit)),
+              ])
+              |> json.to_string
+              |> respond_json(200)
+            }
+            Error(_) -> error_response("Failed to get playback history", 500)
+          }
+        }
+        Error(e) -> {
+          error_response("Invalid or expired token: " <> string.inspect(e), 401)
+        }
+      }
+    }
+    Error(e) -> error_response(e, 401)
+  }
+}
+
+fn encode_playback_snapshot(snapshot: PlaybackStateSnapshot) -> json.Json {
+  json.object([
+    #("playback_state", json.nullable(snapshot.playback_state, json.string)),
+    #("track_uri", json.nullable(snapshot.track_uri, json.string)),
+    #("track_name", json.nullable(snapshot.track_name, json.string)),
+    #("artist_name", json.nullable(snapshot.artist_name, json.string)),
+    #("album_name", json.nullable(snapshot.album_name, json.string)),
+    #("track_duration_ms", json.nullable(snapshot.track_duration_ms, json.int)),
+    #("position_ms", json.nullable(snapshot.position_ms, json.int)),
+    #("volume", json.nullable(snapshot.volume, json.int)),
+    #("queue_length", json.int(snapshot.queue_length)),
+  ])
+}
+
+fn encode_state_log_entry(entry: queries.PlaybackStateLogEntry) -> json.Json {
+  json.object([
+    #("id", json.int(entry.id)),
+    #("timestamp_ms", json.int(entry.timestamp_ms)),
+    #("event_type", json.string(entry.event_type)),
+    #("track_uri", json.nullable(entry.track_uri, json.string)),
+    #("track_name", json.nullable(entry.track_name, json.string)),
+    #("artist_name", json.nullable(entry.artist_name, json.string)),
+    #("album_name", json.nullable(entry.album_name, json.string)),
+    #("track_duration_ms", json.nullable(entry.track_duration_ms, json.int)),
+    #("position_ms", json.nullable(entry.position_ms, json.int)),
+    #("volume_level", json.nullable(entry.volume_level, json.int)),
+    #("queue_length", json.nullable(entry.queue_length, json.int)),
+    #("user_id", json.nullable(entry.user_id, json.int)),
+  ])
 }
 
 fn create_jwt_token(

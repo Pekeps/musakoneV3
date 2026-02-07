@@ -16,6 +16,14 @@ pub fn initialize(db_path: String) -> Result(sqlight.Connection, String) {
     }),
   )
 
+  // Enable WAL mode for safe concurrent writes (tracker + state actor)
+  use _ <- result.try(
+    sqlight.exec("PRAGMA journal_mode=WAL;", db)
+    |> result.map_error(fn(e) {
+      "Failed to enable WAL mode: " <> e.message
+    }),
+  )
+
   // Run migrations
   use _ <- result.try(migrations.migrate(db, "src/db/migrations"))
 

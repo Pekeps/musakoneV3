@@ -728,6 +728,120 @@ pub fn get_event_type_distribution(
   sqlight.query(sql, db, [], decoder)
 }
 
+// ============================================================================
+// PLAYBACK STATE LOG (global ground truth)
+// ============================================================================
+
+pub type PlaybackStateLogEntry {
+  PlaybackStateLogEntry(
+    id: Int,
+    timestamp_ms: Int,
+    event_type: String,
+    track_uri: Option(String),
+    track_name: Option(String),
+    artist_name: Option(String),
+    album_name: Option(String),
+    track_duration_ms: Option(Int),
+    position_ms: Option(Int),
+    volume_level: Option(Int),
+    queue_length: Option(Int),
+    user_id: Option(Int),
+  )
+}
+
+/// Insert a playback state change into the global log
+pub fn log_playback_state_change(
+  db: sqlight.Connection,
+  timestamp_ms: Int,
+  event_type: String,
+  track_uri: Option(String),
+  track_name: Option(String),
+  artist_name: Option(String),
+  album_name: Option(String),
+  track_duration_ms: Option(Int),
+  position_ms: Option(Int),
+  volume_level: Option(Int),
+  queue_length: Option(Int),
+  user_id: Option(Int),
+) -> Result(Nil, sqlight.Error) {
+  let sql =
+    "INSERT INTO playback_state_log
+     (timestamp_ms, event_type, track_uri, track_name, artist_name,
+      album_name, track_duration_ms, position_ms, volume_level,
+      queue_length, user_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+
+  sqlight.query(
+    sql,
+    db,
+    [
+      sqlight.int(timestamp_ms),
+      sqlight.text(event_type),
+      sqlight.nullable(sqlight.text, track_uri),
+      sqlight.nullable(sqlight.text, track_name),
+      sqlight.nullable(sqlight.text, artist_name),
+      sqlight.nullable(sqlight.text, album_name),
+      sqlight.nullable(sqlight.int, track_duration_ms),
+      sqlight.nullable(sqlight.int, position_ms),
+      sqlight.nullable(sqlight.int, volume_level),
+      sqlight.nullable(sqlight.int, queue_length),
+      sqlight.nullable(sqlight.int, user_id),
+    ],
+    decode.dynamic,
+  )
+  |> result.map(fn(_) { Nil })
+}
+
+/// Get playback state history (newest first)
+pub fn get_playback_state_history(
+  db: sqlight.Connection,
+  limit: Int,
+) -> Result(List(PlaybackStateLogEntry), sqlight.Error) {
+  let sql =
+    "SELECT id, timestamp_ms, event_type, track_uri, track_name,
+       artist_name, album_name, track_duration_ms, position_ms,
+       volume_level, queue_length, user_id
+     FROM playback_state_log
+     ORDER BY timestamp_ms DESC
+     LIMIT ?"
+
+  sqlight.query(
+    sql,
+    db,
+    [sqlight.int(limit)],
+    playback_state_log_decoder(),
+  )
+}
+
+fn playback_state_log_decoder() -> decode.Decoder(PlaybackStateLogEntry) {
+  use id <- decode.field(0, decode.int)
+  use timestamp_ms <- decode.field(1, decode.int)
+  use event_type <- decode.field(2, decode.string)
+  use track_uri <- decode.field(3, decode.optional(decode.string))
+  use track_name <- decode.field(4, decode.optional(decode.string))
+  use artist_name <- decode.field(5, decode.optional(decode.string))
+  use album_name <- decode.field(6, decode.optional(decode.string))
+  use track_duration_ms <- decode.field(7, decode.optional(decode.int))
+  use position_ms <- decode.field(8, decode.optional(decode.int))
+  use volume_level <- decode.field(9, decode.optional(decode.int))
+  use queue_length <- decode.field(10, decode.optional(decode.int))
+  use user_id <- decode.field(11, decode.optional(decode.int))
+  decode.success(PlaybackStateLogEntry(
+    id:,
+    timestamp_ms:,
+    event_type:,
+    track_uri:,
+    track_name:,
+    artist_name:,
+    album_name:,
+    track_duration_ms:,
+    position_ms:,
+    volume_level:,
+    queue_length:,
+    user_id:,
+  ))
+}
+
 /// Get all users with their last activity
 pub fn get_all_users_with_activity(
   db: sqlight.Connection,

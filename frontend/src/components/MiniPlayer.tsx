@@ -24,7 +24,6 @@ export function MiniPlayer() {
     const playing = useStore(isPlaying);
     const position = useStore(timePosition);
     const currentVolume = useStore(volume);
-    const [location, setLocation] = useLocation();
     const [volumeOpen, setVolumeOpen] = useState(false);
     const localUpdateInterval = useRef<number | null>(null);
     const lastSyncTime = useRef<number>(Date.now());
@@ -171,13 +170,14 @@ export function MiniPlayer() {
                 {track && (
                     <input
                         type="range"
-                        className="absolute -top-1.5 left-0 w-full h-4 m-0 opacity-0 cursor-pointer z-1"
-                        min={0}
-                        max={track.duration || 100}
-                        value={position}
-                        onChange={handleSeek}
-                        aria-label="Seek"
-                    />
+                        className="absolute -top-1.5 left-0 w-full h-4 m-0 opacity-0 cursor-pointer"
+                        style={{ zIndex: 0, pointerEvents: 'none' }}
+                            min={0}
+                            max={track.duration || 100}
+                            value={position}
+                            onChange={handleSeek}
+                            aria-label="Seek"
+                        />
                 )}
             </div>
 
@@ -233,7 +233,7 @@ export function MiniPlayer() {
                     </button>
                 </div>
 
-                <div className="relative flex items-center shrink-0" ref={volumePopupRef}>
+                <div className="relative flex items-center shrink-0" ref={volumePopupRef} style={{ zIndex: 200 }}>
                     <button
                         className={`btn-control ${volumeOpen ? 'border-accent-primary' : ''}`}
                         onClick={() => setVolumeOpen(!volumeOpen)}
@@ -249,7 +249,7 @@ export function MiniPlayer() {
                     </button>
 
                     {volumeOpen && (
-                        <div className="absolute bottom-[calc(100%+0.5rem)] right-0 bg-bg-tertiary border border-border-primary rounded-lg px-2 py-3 flex flex-col items-center gap-2 z-100 shadow-lg">
+                        <div className="absolute bottom-[calc(100%+0.5rem)] right-0 bg-bg-tertiary border border-border-primary rounded-lg py-2 flex flex-col items-center gap-2 z-100 shadow-lg" style={{ zIndex: 202 }}>
                             <input
                                 type="range"
                                 className="volume-slider"

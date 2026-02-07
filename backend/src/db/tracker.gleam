@@ -311,6 +311,20 @@ pub fn track_command(
   }
 }
 
+/// Extract the JSON-RPC method name from a raw request string.
+/// Used by the playback state actor for attribution matching.
+pub fn extract_method(raw: String) -> Result(String, Nil) {
+  let method_decoder = {
+    use method <- decode.field("method", decode.string)
+    decode.success(method)
+  }
+
+  case json.parse(raw, method_decoder) {
+    Ok(method) -> Ok(method)
+    Error(_) -> Error(Nil)
+  }
+}
+
 // ─── Internal types ────────────────────────────────────────────────
 
 type JsonRpcRequest {
@@ -320,12 +334,7 @@ type JsonRpcRequest {
 // ─── JSON parsing ──────────────────────────────────────────────────
 
 fn parse_jsonrpc_request(raw: String) -> Result(JsonRpcRequest, Nil) {
-  let method_decoder = {
-    use method <- decode.field("method", decode.string)
-    decode.success(method)
-  }
-
-  case json.parse(raw, method_decoder) {
+  case extract_method(raw) {
     Ok(method) -> Ok(JsonRpcRequest(method: method, params: Some(raw)))
     Error(_) -> Error(Nil)
   }
