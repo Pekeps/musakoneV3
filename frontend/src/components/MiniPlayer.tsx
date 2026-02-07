@@ -30,6 +30,7 @@ export function MiniPlayer() {
     const lastSyncTime = useRef<number>(Date.now());
     const lastSyncPosition = useRef<number>(position);
     const volumePopupRef = useRef<HTMLDivElement>(null);
+    const volumeDebounceRef = useRef<number | null>(null);
 
     // Update time position while playing - derive locally, sync periodically
     useEffect(() => {
@@ -138,15 +139,20 @@ export function MiniPlayer() {
         }
     };
 
-    const handleVolumeChange = async (e: Event) => {
+    const handleVolumeChange = (e: Event) => {
         const input = e.target as HTMLInputElement;
         const newVolume = parseInt(input.value, 10);
-        try {
-            await mopidy.setVolume(newVolume);
-            updatePlaybackState({ volume: newVolume });
-        } catch (err) {
-            console.error('Failed to set volume:', err);
+        updatePlaybackState({ volume: newVolume });
+        if (volumeDebounceRef.current) {
+            clearTimeout(volumeDebounceRef.current);
         }
+        volumeDebounceRef.current = window.setTimeout(async () => {
+            try {
+                await mopidy.setVolume(newVolume);
+            } catch (err) {
+                console.error('Failed to set volume:', err);
+            }
+        }, 150);
     };
 
     const progress = track?.duration ? (position / track.duration) * 100 : 0;
@@ -159,7 +165,7 @@ export function MiniPlayer() {
     };
 
     return (
-        <div className="w-full bg-bg-tertiary border-t border-border-primary flex flex-col" style={{ height: 'var(--mini-player-height)', flexShrink: 0, overflow: 'hidden' }}>
+        <div className="w-full bg-bg-tertiary border-t border-border-primary flex flex-col" style={{ height: 'var(--mini-player-height)', flexShrink: 0 }}>
             {/* Progress bar */}
             <div className="progress-bar" style={{ '--progress': `${progress}%` }}>
                 {track && (
