@@ -89,7 +89,7 @@ function TrackRow({ track, rank }: TrackRowProps) {
                 <div className="font-semibold truncate max-w-xs">{track.name}</div>
                 <div className="text-fg-secondary text-xs truncate max-w-xs">{track.artist}</div>
             </td>
-            <td className="p-3 text-sm text-center">{track.play_count}</td>
+            <td className="p-3 text-sm text-center">{track.score}</td>
             <td className="p-3 text-sm text-center text-fg-secondary">{track.unique_users}</td>
         </tr>
     );
@@ -310,7 +310,7 @@ export function AnalyticsView() {
                 <div className="bg-bg-secondary rounded border border-border-primary p-4">
                     <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
                         <Music className="w-5 h-5" />
-                        Most Played Tracks
+                        Clubroom Favorites
                     </h2>
                     <div className="overflow-x-auto">
                         <table className="w-full text-left">
@@ -318,7 +318,7 @@ export function AnalyticsView() {
                                 <tr className="border-b border-border-primary">
                                     <th className="p-3 text-sm font-semibold">Rank</th>
                                     <th className="p-3 text-sm font-semibold">Track</th>
-                                    <th className="p-3 text-sm font-semibold text-center">Plays</th>
+                                    <th className="p-3 text-sm font-semibold text-center">Score</th>
                                     <th className="p-3 text-sm font-semibold text-center">Users</th>
                                 </tr>
                             </thead>

@@ -649,29 +649,47 @@ pub fn get_hourly_activity(
   sqlight.query(sql, db, [], decoder)
 }
 
-/// Get most played tracks across all users
+/// Get top tracks by aggregated affinity score across all users.
+/// Uses the user_track_affinity table which factors in listen %,
+/// queue adds, skips, playlist adds — not just raw play count.
 pub fn get_popular_tracks(
   db: sqlight.Connection,
   limit: Int,
-) -> Result(List(#(String, String, Int, Int)), sqlight.Error) {
+) -> Result(List(#(String, String, Float, Int)), sqlight.Error) {
   let sql =
     "SELECT
-       COALESCE(track_name, 'Unknown') as track,
-       COALESCE(artist_name, 'Unknown') as artist,
-       COUNT(*) as play_count,
-       COUNT(DISTINCT user_id) as unique_users
-     FROM playback_events
-     WHERE event_type IN ('play', 'resume') AND track_name IS NOT NULL
-     GROUP BY track_uri, track_name, artist_name
-     ORDER BY play_count DESC
-     LIMIT ?"
+       COALESCE(
+         (SELECT pe.track_name FROM playback_events pe
+          WHERE pe.track_uri = agg.track_uri AND pe.track_name IS NOT NULL
+          ORDER BY pe.timestamp_ms DESC LIMIT 1),
+         'Unknown'
+       ) as track,
+       COALESCE(
+         (SELECT pe.artist_name FROM playback_events pe
+          WHERE pe.track_uri = agg.track_uri AND pe.artist_name IS NOT NULL
+          ORDER BY pe.timestamp_ms DESC LIMIT 1),
+         'Unknown'
+       ) as artist,
+       agg.total_score,
+       agg.unique_users
+     FROM (
+       SELECT
+         track_uri,
+         ROUND(SUM(affinity_score), 1) as total_score,
+         COUNT(DISTINCT user_id) as unique_users
+       FROM user_track_affinity
+       GROUP BY track_uri
+       HAVING SUM(affinity_score) > 0
+       ORDER BY total_score DESC
+       LIMIT ?
+     ) agg"
 
   let decoder = {
     use track <- decode.field(0, decode.string)
     use artist <- decode.field(1, decode.string)
-    use plays <- decode.field(2, decode.int)
+    use score <- decode.field(2, decode.float)
     use users <- decode.field(3, decode.int)
-    decode.success(#(track, artist, plays, users))
+    decode.success(#(track, artist, score, users))
   }
 
   sqlight.query(sql, db, [sqlight.int(limit)], decoder)

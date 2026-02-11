@@ -420,11 +420,11 @@ pub fn get_admin_dashboard(
             #(
               "popular_tracks",
               json.array(result.unwrap(popular_tracks, []), fn(track) {
-                let #(name, artist, plays, users) = track
+                let #(name, artist, score, users) = track
                 json.object([
                   #("name", json.string(name)),
                   #("artist", json.string(artist)),
-                  #("play_count", json.int(plays)),
+                  #("score", json.float(score)),
                   #("unique_users", json.int(users)),
                 ])
               }),

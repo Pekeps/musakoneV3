@@ -31,7 +31,7 @@ export interface HourlyActivity {
 export interface PopularTrack {
     name: string;
     artist: string;
-    play_count: number;
+    score: number;
     unique_users: number;
 }
 
