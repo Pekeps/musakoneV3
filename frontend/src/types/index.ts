@@ -105,3 +105,24 @@ export interface AnalyticsData {
 export interface UserStats {
     [actionType: string]: number;
 }
+
+// Playlist types
+export interface Playlist {
+    id: number;
+    user_id: number;
+    name: string;
+    description: string | null;
+    created_at: number;
+    updated_at: number;
+}
+
+export interface PlaylistTrack {
+    playlist_id: number;
+    track_uri: string;
+    position: number;
+}
+
+export interface PlaylistWithTracks {
+    playlist: Playlist;
+    tracks: PlaylistTrack[];
+}

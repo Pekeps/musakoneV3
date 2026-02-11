@@ -10,6 +10,7 @@ import gleam/http/response.{type Response}
 import gleam/int
 import gleam/json
 import gleam/list
+import gleam/option.{type Option, None}
 import gleam/result
 import gleam/string
 import gleam/time/timestamp
@@ -626,6 +627,7 @@ fn encode_track_affinity(a: queries.UserTrackAffinity) -> json.Json {
     #("skip_count", json.int(a.skip_count)),
     #("early_skip_count", json.int(a.early_skip_count)),
     #("queue_remove_count", json.int(a.queue_remove_count)),
+    #("playlist_add_count", json.int(a.playlist_add_count)),
     #("affinity_score", json.float(a.affinity_score)),
     #("last_interaction_ms", json.int(a.last_interaction_ms)),
   ])
@@ -700,4 +702,551 @@ fn error_response(message: String, status: Int) -> Response(ResponseData) {
   json.object([#("error", json.string(message))])
   |> json.to_string
   |> respond_json(status)
+}
+
+// ============================================================================
+// PLAYLIST ENDPOINTS
+// ============================================================================
+
+fn now_ms() -> Int {
+  timestamp.system_time()
+  |> timestamp.to_unix_seconds()
+  |> float.multiply(1000.0)
+  |> float.round
+}
+
+fn encode_playlist(p: queries.Playlist) -> json.Json {
+  json.object([
+    #("id", json.int(p.id)),
+    #("user_id", json.int(p.user_id)),
+    #("name", json.string(p.name)),
+    #("description", json.nullable(p.description, json.string)),
+    #("created_at", json.int(p.created_at)),
+    #("updated_at", json.int(p.updated_at)),
+  ])
+}
+
+fn encode_playlist_track(t: queries.PlaylistTrack) -> json.Json {
+  json.object([
+    #("playlist_id", json.int(t.playlist_id)),
+    #("track_uri", json.string(t.track_uri)),
+    #("position", json.int(t.position)),
+  ])
+}
+
+/// Verify playlist ownership: returns Ok(playlist) if user_id matches
+fn verify_ownership(
+  db: sqlight.Connection,
+  playlist_id: Int,
+  user_id: Int,
+) -> Result(queries.Playlist, Response(ResponseData)) {
+  case queries.get_playlist_by_id(db, playlist_id) {
+    Ok([playlist, ..]) -> {
+      case playlist.user_id == user_id {
+        True -> Ok(playlist)
+        False -> Error(error_response("Forbidden", 403))
+      }
+    }
+    Ok([]) -> Error(error_response("Playlist not found", 404))
+    Error(_) -> Error(error_response("Database error", 500))
+  }
+}
+
+/// List all playlists for the current user
+pub fn list_playlists(
+  state: AppState,
+  auth_header: String,
+) -> Response(ResponseData) {
+  case extract_token(auth_header) {
+    Ok(token) -> {
+      case verify_jwt_token(token, state.jwt_secret) {
+        Ok(jwt_data) -> {
+          case get_user_id_from_jwt(jwt_data) {
+            Ok(user_id) -> {
+              case queries.get_user_playlists(state.db, user_id) {
+                Ok(playlists) -> {
+                  json.array(playlists, encode_playlist)
+                  |> json.to_string
+                  |> respond_json(200)
+                }
+                Error(_) -> error_response("Database error", 500)
+              }
+            }
+            Error(e) -> error_response("Invalid token: " <> e, 401)
+          }
+        }
+        Error(e) ->
+          error_response(
+            "Invalid or expired token: " <> string.inspect(e),
+            401,
+          )
+      }
+    }
+    Error(e) -> error_response(e, 401)
+  }
+}
+
+/// Get playlist IDs that contain a given track (for the current user)
+pub fn get_playlists_containing_track(
+  state: AppState,
+  auth_header: String,
+  track_uri: String,
+) -> Response(ResponseData) {
+  case extract_token(auth_header) {
+    Ok(token) -> {
+      case verify_jwt_token(token, state.jwt_secret) {
+        Ok(jwt_data) -> {
+          case get_user_id_from_jwt(jwt_data) {
+            Ok(user_id) -> {
+              case
+                queries.get_playlists_containing_track(
+                  state.db,
+                  user_id,
+                  track_uri,
+                )
+              {
+                Ok(ids) -> {
+                  json.array(ids, json.int)
+                  |> json.to_string
+                  |> respond_json(200)
+                }
+                Error(_) -> error_response("Database error", 500)
+              }
+            }
+            Error(e) -> error_response("Invalid token: " <> e, 401)
+          }
+        }
+        Error(e) ->
+          error_response(
+            "Invalid or expired token: " <> string.inspect(e),
+            401,
+          )
+      }
+    }
+    Error(e) -> error_response(e, 401)
+  }
+}
+
+/// Create a new playlist
+pub fn create_playlist(
+  state: AppState,
+  auth_header: String,
+  body: String,
+) -> Response(ResponseData) {
+  case extract_token(auth_header) {
+    Ok(token) -> {
+      case verify_jwt_token(token, state.jwt_secret) {
+        Ok(jwt_data) -> {
+          case get_user_id_from_jwt(jwt_data) {
+            Ok(user_id) -> {
+              case parse_playlist_body(body) {
+                Ok(#(name, description)) -> {
+                  case
+                    queries.create_playlist(
+                      state.db,
+                      user_id,
+                      name,
+                      description,
+                      now_ms(),
+                    )
+                  {
+                    Ok([playlist, ..]) ->
+                      encode_playlist(playlist)
+                      |> json.to_string
+                      |> respond_json(201)
+                    _ -> error_response("Failed to create playlist", 500)
+                  }
+                }
+                Error(e) -> error_response("Invalid request: " <> e, 400)
+              }
+            }
+            Error(e) -> error_response("Invalid token: " <> e, 401)
+          }
+        }
+        Error(e) ->
+          error_response(
+            "Invalid or expired token: " <> string.inspect(e),
+            401,
+          )
+      }
+    }
+    Error(e) -> error_response(e, 401)
+  }
+}
+
+/// Get a single playlist with its tracks
+pub fn get_playlist(
+  state: AppState,
+  auth_header: String,
+  playlist_id: Int,
+) -> Response(ResponseData) {
+  case extract_token(auth_header) {
+    Ok(token) -> {
+      case verify_jwt_token(token, state.jwt_secret) {
+        Ok(jwt_data) -> {
+          case get_user_id_from_jwt(jwt_data) {
+            Ok(user_id) -> {
+              case verify_ownership(state.db, playlist_id, user_id) {
+                Ok(playlist) -> {
+                  let tracks =
+                    queries.get_playlist_tracks(state.db, playlist_id)
+                    |> result.unwrap([])
+                  json.object([
+                    #("playlist", encode_playlist(playlist)),
+                    #("tracks", json.array(tracks, encode_playlist_track)),
+                  ])
+                  |> json.to_string
+                  |> respond_json(200)
+                }
+                Error(resp) -> resp
+              }
+            }
+            Error(e) -> error_response("Invalid token: " <> e, 401)
+          }
+        }
+        Error(e) ->
+          error_response(
+            "Invalid or expired token: " <> string.inspect(e),
+            401,
+          )
+      }
+    }
+    Error(e) -> error_response(e, 401)
+  }
+}
+
+/// Update a playlist's name and description
+pub fn update_playlist(
+  state: AppState,
+  auth_header: String,
+  playlist_id: Int,
+  body: String,
+) -> Response(ResponseData) {
+  case extract_token(auth_header) {
+    Ok(token) -> {
+      case verify_jwt_token(token, state.jwt_secret) {
+        Ok(jwt_data) -> {
+          case get_user_id_from_jwt(jwt_data) {
+            Ok(user_id) -> {
+              case verify_ownership(state.db, playlist_id, user_id) {
+                Ok(_) -> {
+                  case parse_playlist_body(body) {
+                    Ok(#(name, description)) -> {
+                      case
+                        queries.update_playlist(
+                          state.db,
+                          playlist_id,
+                          name,
+                          description,
+                          now_ms(),
+                        )
+                      {
+                        Ok([playlist, ..]) ->
+                          encode_playlist(playlist)
+                          |> json.to_string
+                          |> respond_json(200)
+                        _ -> error_response("Failed to update playlist", 500)
+                      }
+                    }
+                    Error(e) -> error_response("Invalid request: " <> e, 400)
+                  }
+                }
+                Error(resp) -> resp
+              }
+            }
+            Error(e) -> error_response("Invalid token: " <> e, 401)
+          }
+        }
+        Error(e) ->
+          error_response(
+            "Invalid or expired token: " <> string.inspect(e),
+            401,
+          )
+      }
+    }
+    Error(e) -> error_response(e, 401)
+  }
+}
+
+/// Delete a playlist
+pub fn delete_playlist(
+  state: AppState,
+  auth_header: String,
+  playlist_id: Int,
+) -> Response(ResponseData) {
+  case extract_token(auth_header) {
+    Ok(token) -> {
+      case verify_jwt_token(token, state.jwt_secret) {
+        Ok(jwt_data) -> {
+          case get_user_id_from_jwt(jwt_data) {
+            Ok(user_id) -> {
+              case verify_ownership(state.db, playlist_id, user_id) {
+                Ok(_) -> {
+                  case queries.delete_playlist(state.db, playlist_id) {
+                    Ok(_) ->
+                      json.object([#("ok", json.bool(True))])
+                      |> json.to_string
+                      |> respond_json(200)
+                    Error(_) ->
+                      error_response("Failed to delete playlist", 500)
+                  }
+                }
+                Error(resp) -> resp
+              }
+            }
+            Error(e) -> error_response("Invalid token: " <> e, 401)
+          }
+        }
+        Error(e) ->
+          error_response(
+            "Invalid or expired token: " <> string.inspect(e),
+            401,
+          )
+      }
+    }
+    Error(e) -> error_response(e, 401)
+  }
+}
+
+/// Add a track to a playlist (also updates affinity)
+pub fn add_playlist_track(
+  state: AppState,
+  auth_header: String,
+  playlist_id: Int,
+  body: String,
+) -> Response(ResponseData) {
+  case extract_token(auth_header) {
+    Ok(token) -> {
+      case verify_jwt_token(token, state.jwt_secret) {
+        Ok(jwt_data) -> {
+          case get_user_id_from_jwt(jwt_data) {
+            Ok(user_id) -> {
+              case verify_ownership(state.db, playlist_id, user_id) {
+                Ok(_) -> {
+                  case parse_track_uri_body(body) {
+                    Ok(track_uri) -> {
+                      case
+                        queries.add_track_to_playlist(
+                          state.db,
+                          playlist_id,
+                          track_uri,
+                        )
+                      {
+                        Ok(_) -> {
+                          // Update affinity score
+                          let _ =
+                            queries.update_track_affinity_playlist(
+                              state.db,
+                              user_id,
+                              track_uri,
+                              "add",
+                              now_ms(),
+                            )
+                          // Touch updated_at on the playlist
+                          let _ =
+                            queries.update_playlist(
+                              state.db,
+                              playlist_id,
+                              // Re-fetch to keep current name
+                              {
+                                case
+                                  queries.get_playlist_by_id(
+                                    state.db,
+                                    playlist_id,
+                                  )
+                                {
+                                  Ok([p, ..]) -> p.name
+                                  _ -> ""
+                                }
+                              },
+                              {
+                                case
+                                  queries.get_playlist_by_id(
+                                    state.db,
+                                    playlist_id,
+                                  )
+                                {
+                                  Ok([p, ..]) -> p.description
+                                  _ -> None
+                                }
+                              },
+                              now_ms(),
+                            )
+                          json.object([#("ok", json.bool(True))])
+                          |> json.to_string
+                          |> respond_json(200)
+                        }
+                        Error(_) ->
+                          error_response(
+                            "Failed to add track (may already exist)",
+                            409,
+                          )
+                      }
+                    }
+                    Error(e) -> error_response("Invalid request: " <> e, 400)
+                  }
+                }
+                Error(resp) -> resp
+              }
+            }
+            Error(e) -> error_response("Invalid token: " <> e, 401)
+          }
+        }
+        Error(e) ->
+          error_response(
+            "Invalid or expired token: " <> string.inspect(e),
+            401,
+          )
+      }
+    }
+    Error(e) -> error_response(e, 401)
+  }
+}
+
+/// Remove a track from a playlist (also updates affinity)
+pub fn remove_playlist_track(
+  state: AppState,
+  auth_header: String,
+  playlist_id: Int,
+  body: String,
+) -> Response(ResponseData) {
+  case extract_token(auth_header) {
+    Ok(token) -> {
+      case verify_jwt_token(token, state.jwt_secret) {
+        Ok(jwt_data) -> {
+          case get_user_id_from_jwt(jwt_data) {
+            Ok(user_id) -> {
+              case verify_ownership(state.db, playlist_id, user_id) {
+                Ok(_) -> {
+                  case parse_track_uri_body(body) {
+                    Ok(track_uri) -> {
+                      case
+                        queries.remove_track_from_playlist(
+                          state.db,
+                          playlist_id,
+                          track_uri,
+                        )
+                      {
+                        Ok(_) -> {
+                          json.object([#("ok", json.bool(True))])
+                          |> json.to_string
+                          |> respond_json(200)
+                        }
+                        Error(_) ->
+                          error_response("Failed to remove track", 500)
+                      }
+                    }
+                    Error(e) -> error_response("Invalid request: " <> e, 400)
+                  }
+                }
+                Error(resp) -> resp
+              }
+            }
+            Error(e) -> error_response("Invalid token: " <> e, 401)
+          }
+        }
+        Error(e) ->
+          error_response(
+            "Invalid or expired token: " <> string.inspect(e),
+            401,
+          )
+      }
+    }
+    Error(e) -> error_response(e, 401)
+  }
+}
+
+/// Reorder a track within a playlist
+pub fn reorder_playlist_track(
+  state: AppState,
+  auth_header: String,
+  playlist_id: Int,
+  body: String,
+) -> Response(ResponseData) {
+  case extract_token(auth_header) {
+    Ok(token) -> {
+      case verify_jwt_token(token, state.jwt_secret) {
+        Ok(jwt_data) -> {
+          case get_user_id_from_jwt(jwt_data) {
+            Ok(user_id) -> {
+              case verify_ownership(state.db, playlist_id, user_id) {
+                Ok(_) -> {
+                  case parse_reorder_body(body) {
+                    Ok(#(track_uri, new_position)) -> {
+                      case
+                        queries.reorder_playlist_track(
+                          state.db,
+                          playlist_id,
+                          track_uri,
+                          new_position,
+                        )
+                      {
+                        Ok(_) ->
+                          json.object([#("ok", json.bool(True))])
+                          |> json.to_string
+                          |> respond_json(200)
+                        Error(_) ->
+                          error_response("Failed to reorder track", 500)
+                      }
+                    }
+                    Error(e) -> error_response("Invalid request: " <> e, 400)
+                  }
+                }
+                Error(resp) -> resp
+              }
+            }
+            Error(e) -> error_response("Invalid token: " <> e, 401)
+          }
+        }
+        Error(e) ->
+          error_response(
+            "Invalid or expired token: " <> string.inspect(e),
+            401,
+          )
+      }
+    }
+    Error(e) -> error_response(e, 401)
+  }
+}
+
+// Playlist body parsers
+
+fn parse_playlist_body(
+  body: String,
+) -> Result(#(String, Option(String)), String) {
+  let decoder = {
+    use name <- decode.field("name", decode.string)
+    use description <- decode.optional_field(
+      "description",
+      None,
+      decode.optional(decode.string),
+    )
+    decode.success(#(name, description))
+  }
+
+  json.parse(body, decoder)
+  |> result.map_error(fn(_) { "Invalid JSON: expected {name, description?}" })
+}
+
+fn parse_track_uri_body(body: String) -> Result(String, String) {
+  let decoder = {
+    use track_uri <- decode.field("track_uri", decode.string)
+    decode.success(track_uri)
+  }
+
+  json.parse(body, decoder)
+  |> result.map_error(fn(_) { "Invalid JSON: expected {track_uri}" })
+}
+
+fn parse_reorder_body(body: String) -> Result(#(String, Int), String) {
+  let decoder = {
+    use track_uri <- decode.field("track_uri", decode.string)
+    use new_position <- decode.field("new_position", decode.int)
+    decode.success(#(track_uri, new_position))
+  }
+
+  json.parse(body, decoder)
+  |> result.map_error(fn(_) {
+    "Invalid JSON: expected {track_uri, new_position}"
+  })
 }

@@ -278,6 +278,7 @@ export function SearchView() {
                                 <SwipeableTrackItem
                                     key={track.uri}
                                     track={track}
+                                    trackUri={track.uri}
                                     isQueued={queuedUris.has(track.uri)}
                                     onAdd={() => handleAddTrack(track)}
                                     onAddNext={() => handleAddTrackNext(track)}

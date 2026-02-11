@@ -276,6 +276,223 @@ fn handle_request(
       }
     }
 
+    // Playlist endpoints
+    http.Get, ["api", "playlists"] -> {
+      case get_auth_header(req) {
+        Ok(auth_header) ->
+          http_handlers.list_playlists(state, auth_header) |> with_cors
+        Error(e) -> error_response(e, 401) |> with_cors
+      }
+    }
+
+    http.Post, ["api", "playlists"] -> {
+      case get_auth_header(req) {
+        Ok(auth_header) -> {
+          case mist.read_body(req, max_body_limit: 1024 * 1024) {
+            Ok(body_req) -> {
+              case bit_array.to_string(body_req.body) {
+                Ok(body) ->
+                  http_handlers.create_playlist(state, auth_header, body)
+                  |> with_cors
+                Error(_) ->
+                  error_response("Invalid UTF-8 in request body", 400)
+                  |> with_cors
+              }
+            }
+            Error(_) ->
+              error_response("Failed to read request body", 400) |> with_cors
+          }
+        }
+        Error(e) -> error_response(e, 401) |> with_cors
+      }
+    }
+
+    http.Get, ["api", "playlists", "containing"] -> {
+      case get_auth_header(req) {
+        Ok(auth_header) -> {
+          let query_params =
+            req.query
+            |> option.unwrap("")
+            |> uri.parse_query
+            |> result.unwrap([])
+
+          case list.key_find(query_params, "track_uri") {
+            Ok(track_uri) ->
+              http_handlers.get_playlists_containing_track(
+                state,
+                auth_header,
+                track_uri,
+              )
+              |> with_cors
+            Error(_) ->
+              error_response("Missing track_uri query parameter", 400)
+              |> with_cors
+          }
+        }
+        Error(e) -> error_response(e, 401) |> with_cors
+      }
+    }
+
+    http.Get, ["api", "playlists", id_str] -> {
+      case int.parse(id_str) {
+        Ok(playlist_id) -> {
+          case get_auth_header(req) {
+            Ok(auth_header) ->
+              http_handlers.get_playlist(state, auth_header, playlist_id)
+              |> with_cors
+            Error(e) -> error_response(e, 401) |> with_cors
+          }
+        }
+        Error(_) -> error_response("Invalid playlist ID", 400) |> with_cors
+      }
+    }
+
+    http.Put, ["api", "playlists", id_str] -> {
+      case int.parse(id_str) {
+        Ok(playlist_id) -> {
+          case get_auth_header(req) {
+            Ok(auth_header) -> {
+              case mist.read_body(req, max_body_limit: 1024 * 1024) {
+                Ok(body_req) -> {
+                  case bit_array.to_string(body_req.body) {
+                    Ok(body) ->
+                      http_handlers.update_playlist(
+                        state,
+                        auth_header,
+                        playlist_id,
+                        body,
+                      )
+                      |> with_cors
+                    Error(_) ->
+                      error_response("Invalid UTF-8 in request body", 400)
+                      |> with_cors
+                  }
+                }
+                Error(_) ->
+                  error_response("Failed to read request body", 400)
+                  |> with_cors
+              }
+            }
+            Error(e) -> error_response(e, 401) |> with_cors
+          }
+        }
+        Error(_) -> error_response("Invalid playlist ID", 400) |> with_cors
+      }
+    }
+
+    http.Delete, ["api", "playlists", id_str] -> {
+      case int.parse(id_str) {
+        Ok(playlist_id) -> {
+          case get_auth_header(req) {
+            Ok(auth_header) ->
+              http_handlers.delete_playlist(state, auth_header, playlist_id)
+              |> with_cors
+            Error(e) -> error_response(e, 401) |> with_cors
+          }
+        }
+        Error(_) -> error_response("Invalid playlist ID", 400) |> with_cors
+      }
+    }
+
+    http.Post, ["api", "playlists", id_str, "tracks"] -> {
+      case int.parse(id_str) {
+        Ok(playlist_id) -> {
+          case get_auth_header(req) {
+            Ok(auth_header) -> {
+              case mist.read_body(req, max_body_limit: 1024 * 1024) {
+                Ok(body_req) -> {
+                  case bit_array.to_string(body_req.body) {
+                    Ok(body) ->
+                      http_handlers.add_playlist_track(
+                        state,
+                        auth_header,
+                        playlist_id,
+                        body,
+                      )
+                      |> with_cors
+                    Error(_) ->
+                      error_response("Invalid UTF-8 in request body", 400)
+                      |> with_cors
+                  }
+                }
+                Error(_) ->
+                  error_response("Failed to read request body", 400)
+                  |> with_cors
+              }
+            }
+            Error(e) -> error_response(e, 401) |> with_cors
+          }
+        }
+        Error(_) -> error_response("Invalid playlist ID", 400) |> with_cors
+      }
+    }
+
+    http.Post, ["api", "playlists", id_str, "tracks", "remove"] -> {
+      case int.parse(id_str) {
+        Ok(playlist_id) -> {
+          case get_auth_header(req) {
+            Ok(auth_header) -> {
+              case mist.read_body(req, max_body_limit: 1024 * 1024) {
+                Ok(body_req) -> {
+                  case bit_array.to_string(body_req.body) {
+                    Ok(body) ->
+                      http_handlers.remove_playlist_track(
+                        state,
+                        auth_header,
+                        playlist_id,
+                        body,
+                      )
+                      |> with_cors
+                    Error(_) ->
+                      error_response("Invalid UTF-8 in request body", 400)
+                      |> with_cors
+                  }
+                }
+                Error(_) ->
+                  error_response("Failed to read request body", 400)
+                  |> with_cors
+              }
+            }
+            Error(e) -> error_response(e, 401) |> with_cors
+          }
+        }
+        Error(_) -> error_response("Invalid playlist ID", 400) |> with_cors
+      }
+    }
+
+    http.Put, ["api", "playlists", id_str, "tracks", "reorder"] -> {
+      case int.parse(id_str) {
+        Ok(playlist_id) -> {
+          case get_auth_header(req) {
+            Ok(auth_header) -> {
+              case mist.read_body(req, max_body_limit: 1024 * 1024) {
+                Ok(body_req) -> {
+                  case bit_array.to_string(body_req.body) {
+                    Ok(body) ->
+                      http_handlers.reorder_playlist_track(
+                        state,
+                        auth_header,
+                        playlist_id,
+                        body,
+                      )
+                      |> with_cors
+                    Error(_) ->
+                      error_response("Invalid UTF-8 in request body", 400)
+                      |> with_cors
+                  }
+                }
+                Error(_) ->
+                  error_response("Failed to read request body", 400)
+                  |> with_cors
+              }
+            }
+            Error(e) -> error_response(e, 401) |> with_cors
+          }
+        }
+        Error(_) -> error_response("Invalid playlist ID", 400) |> with_cors
+      }
+    }
+
     // WebSocket endpoint - now uses event bus
     http.Get, ["ws"] -> {
       ws_handler.handle_websocket(

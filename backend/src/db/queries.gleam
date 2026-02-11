@@ -1025,6 +1025,7 @@ pub type UserTrackAffinity {
     skip_count: Int,
     early_skip_count: Int,
     queue_remove_count: Int,
+    playlist_add_count: Int,
     affinity_score: Float,
     last_interaction_ms: Int,
   )
@@ -1061,8 +1062,8 @@ pub fn update_track_affinity_listen(
     "INSERT INTO user_track_affinity
      (user_id, track_uri, play_count, total_listen_ms, avg_listen_pct,
       queue_add_count, queue_move_closer, skip_count, early_skip_count,
-      queue_remove_count, affinity_score, last_interaction_ms)
-     VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, ?6, ?7, 0, 0.0, ?8)
+      queue_remove_count, playlist_add_count, affinity_score, last_interaction_ms)
+     VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, ?6, ?7, 0, 0, 0.0, ?8)
      ON CONFLICT(user_id, track_uri) DO UPDATE SET
        play_count = user_track_affinity.play_count + ?3,
        total_listen_ms = user_track_affinity.total_listen_ms + ?4,
@@ -1085,6 +1086,7 @@ pub fn update_track_affinity_listen(
             END * 3.0)
          + (user_track_affinity.queue_add_count * 1.5)
          + (user_track_affinity.queue_move_closer * 2.0)
+         + (user_track_affinity.playlist_add_count * 1.0)
          - ((user_track_affinity.skip_count + ?6) * 1.0)
          - ((user_track_affinity.early_skip_count + ?7) * 2.0)
          - (user_track_affinity.queue_remove_count * 1.5)"
@@ -1126,8 +1128,8 @@ pub fn update_track_affinity_queue(
     "INSERT INTO user_track_affinity
      (user_id, track_uri, play_count, total_listen_ms, avg_listen_pct,
       queue_add_count, queue_move_closer, skip_count, early_skip_count,
-      queue_remove_count, affinity_score, last_interaction_ms)
-     VALUES (?1, ?2, 0, 0, 0.0, ?3, ?4, 0, 0, ?5, 0.0, ?6)
+      queue_remove_count, playlist_add_count, affinity_score, last_interaction_ms)
+     VALUES (?1, ?2, 0, 0, 0.0, ?3, ?4, 0, 0, ?5, 0, 0.0, ?6)
      ON CONFLICT(user_id, track_uri) DO UPDATE SET
        queue_add_count = user_track_affinity.queue_add_count + ?3,
        queue_move_closer = user_track_affinity.queue_move_closer + ?4,
@@ -1138,6 +1140,7 @@ pub fn update_track_affinity_queue(
          + (user_track_affinity.avg_listen_pct * 3.0)
          + ((user_track_affinity.queue_add_count + ?3) * 1.5)
          + ((user_track_affinity.queue_move_closer + ?4) * 2.0)
+         + (user_track_affinity.playlist_add_count * 1.0)
          - (user_track_affinity.skip_count * 1.0)
          - (user_track_affinity.early_skip_count * 2.0)
          - ((user_track_affinity.queue_remove_count + ?5) * 1.5)"
@@ -1167,7 +1170,7 @@ pub fn get_user_track_affinities(
   let sql =
     "SELECT user_id, track_uri, play_count, total_listen_ms, avg_listen_pct,
        queue_add_count, queue_move_closer, skip_count, early_skip_count,
-       queue_remove_count, affinity_score, last_interaction_ms
+       queue_remove_count, playlist_add_count, affinity_score, last_interaction_ms
      FROM user_track_affinity
      WHERE user_id = ?
      ORDER BY affinity_score DESC
@@ -1192,8 +1195,9 @@ fn user_track_affinity_decoder() -> decode.Decoder(UserTrackAffinity) {
   use skip_count <- decode.field(7, decode.int)
   use early_skip_count <- decode.field(8, decode.int)
   use queue_remove_count <- decode.field(9, decode.int)
-  use affinity_score <- decode.field(10, decode.float)
-  use last_interaction_ms <- decode.field(11, decode.int)
+  use playlist_add_count <- decode.field(10, decode.int)
+  use affinity_score <- decode.field(11, decode.float)
+  use last_interaction_ms <- decode.field(12, decode.int)
   decode.success(UserTrackAffinity(
     user_id:,
     track_uri:,
@@ -1205,6 +1209,7 @@ fn user_track_affinity_decoder() -> decode.Decoder(UserTrackAffinity) {
     skip_count:,
     early_skip_count:,
     queue_remove_count:,
+    playlist_add_count:,
     affinity_score:,
     last_interaction_ms:,
   ))
@@ -1477,6 +1482,334 @@ pub fn log_search_conversion(
       sqlight.nullable(sqlight.text, result_uri),
       sqlight.text(action),
       sqlight.nullable(sqlight.int, time_to_action_ms),
+    ],
+    decode.dynamic,
+  )
+  |> result.map(fn(_) { Nil })
+}
+
+// ============================================================================
+// PLAYLISTS
+// ============================================================================
+
+pub type Playlist {
+  Playlist(
+    id: Int,
+    user_id: Int,
+    name: String,
+    description: Option(String),
+    created_at: Int,
+    updated_at: Int,
+  )
+}
+
+pub type PlaylistTrack {
+  PlaylistTrack(playlist_id: Int, track_uri: String, position: Int)
+}
+
+fn playlist_decoder() -> decode.Decoder(Playlist) {
+  use id <- decode.field(0, decode.int)
+  use user_id <- decode.field(1, decode.int)
+  use name <- decode.field(2, decode.string)
+  use description <- decode.field(3, decode.optional(decode.string))
+  use created_at <- decode.field(4, decode.int)
+  use updated_at <- decode.field(5, decode.int)
+  decode.success(Playlist(id:, user_id:, name:, description:, created_at:, updated_at:))
+}
+
+fn playlist_track_decoder() -> decode.Decoder(PlaylistTrack) {
+  use playlist_id <- decode.field(0, decode.int)
+  use track_uri <- decode.field(1, decode.string)
+  use position <- decode.field(2, decode.int)
+  decode.success(PlaylistTrack(playlist_id:, track_uri:, position:))
+}
+
+/// Create a new playlist
+pub fn create_playlist(
+  db: sqlight.Connection,
+  user_id: Int,
+  name: String,
+  description: Option(String),
+  now_ms: Int,
+) -> Result(List(Playlist), sqlight.Error) {
+  let sql =
+    "INSERT INTO playlists (user_id, name, description, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?)
+     RETURNING id, user_id, name, description, created_at, updated_at"
+
+  sqlight.query(
+    sql,
+    db,
+    [
+      sqlight.int(user_id),
+      sqlight.text(name),
+      sqlight.nullable(sqlight.text, description),
+      sqlight.int(now_ms),
+      sqlight.int(now_ms),
+    ],
+    playlist_decoder(),
+  )
+}
+
+/// Get all playlists for a user
+pub fn get_user_playlists(
+  db: sqlight.Connection,
+  user_id: Int,
+) -> Result(List(Playlist), sqlight.Error) {
+  let sql =
+    "SELECT id, user_id, name, description, created_at, updated_at
+     FROM playlists
+     WHERE user_id = ?
+     ORDER BY updated_at DESC"
+
+  sqlight.query(sql, db, [sqlight.int(user_id)], playlist_decoder())
+}
+
+/// Get a single playlist by ID
+pub fn get_playlist_by_id(
+  db: sqlight.Connection,
+  playlist_id: Int,
+) -> Result(List(Playlist), sqlight.Error) {
+  let sql =
+    "SELECT id, user_id, name, description, created_at, updated_at
+     FROM playlists
+     WHERE id = ?"
+
+  sqlight.query(sql, db, [sqlight.int(playlist_id)], playlist_decoder())
+}
+
+/// Update playlist name and description
+pub fn update_playlist(
+  db: sqlight.Connection,
+  playlist_id: Int,
+  name: String,
+  description: Option(String),
+  now_ms: Int,
+) -> Result(List(Playlist), sqlight.Error) {
+  let sql =
+    "UPDATE playlists
+     SET name = ?, description = ?, updated_at = ?
+     WHERE id = ?
+     RETURNING id, user_id, name, description, created_at, updated_at"
+
+  sqlight.query(
+    sql,
+    db,
+    [
+      sqlight.text(name),
+      sqlight.nullable(sqlight.text, description),
+      sqlight.int(now_ms),
+      sqlight.int(playlist_id),
+    ],
+    playlist_decoder(),
+  )
+}
+
+/// Delete a playlist (CASCADE removes tracks)
+pub fn delete_playlist(
+  db: sqlight.Connection,
+  playlist_id: Int,
+) -> Result(Nil, sqlight.Error) {
+  sqlight.query(
+    "DELETE FROM playlists WHERE id = ?",
+    db,
+    [sqlight.int(playlist_id)],
+    decode.dynamic,
+  )
+  |> result.map(fn(_) { Nil })
+}
+
+/// Get tracks for a playlist ordered by position
+pub fn get_playlist_tracks(
+  db: sqlight.Connection,
+  playlist_id: Int,
+) -> Result(List(PlaylistTrack), sqlight.Error) {
+  let sql =
+    "SELECT playlist_id, track_uri, position
+     FROM playlist_tracks
+     WHERE playlist_id = ?
+     ORDER BY position ASC"
+
+  sqlight.query(
+    sql,
+    db,
+    [sqlight.int(playlist_id)],
+    playlist_track_decoder(),
+  )
+}
+
+/// Get IDs of user's playlists that contain a given track
+pub fn get_playlists_containing_track(
+  db: sqlight.Connection,
+  user_id: Int,
+  track_uri: String,
+) -> Result(List(Int), sqlight.Error) {
+  let sql =
+    "SELECT p.id
+     FROM playlists p
+     JOIN playlist_tracks pt ON p.id = pt.playlist_id
+     WHERE p.user_id = ? AND pt.track_uri = ?"
+
+  let id_decoder = {
+    use id <- decode.field(0, decode.int)
+    decode.success(id)
+  }
+
+  sqlight.query(
+    sql,
+    db,
+    [sqlight.int(user_id), sqlight.text(track_uri)],
+    id_decoder,
+  )
+}
+
+/// Add a track to a playlist at the end
+pub fn add_track_to_playlist(
+  db: sqlight.Connection,
+  playlist_id: Int,
+  track_uri: String,
+) -> Result(Nil, sqlight.Error) {
+  let sql =
+    "INSERT INTO playlist_tracks (playlist_id, track_uri, position)
+     VALUES (?1, ?2, COALESCE((SELECT MAX(position) + 1 FROM playlist_tracks WHERE playlist_id = ?1), 0))"
+
+  sqlight.query(
+    sql,
+    db,
+    [sqlight.int(playlist_id), sqlight.text(track_uri)],
+    decode.dynamic,
+  )
+  |> result.map(fn(_) { Nil })
+}
+
+/// Remove a track from a playlist
+pub fn remove_track_from_playlist(
+  db: sqlight.Connection,
+  playlist_id: Int,
+  track_uri: String,
+) -> Result(Nil, sqlight.Error) {
+  sqlight.query(
+    "DELETE FROM playlist_tracks WHERE playlist_id = ? AND track_uri = ?",
+    db,
+    [sqlight.int(playlist_id), sqlight.text(track_uri)],
+    decode.dynamic,
+  )
+  |> result.map(fn(_) { Nil })
+}
+
+/// Reorder a track within a playlist to a new position
+pub fn reorder_playlist_track(
+  db: sqlight.Connection,
+  playlist_id: Int,
+  track_uri: String,
+  new_position: Int,
+) -> Result(Nil, sqlight.Error) {
+  // Get current position
+  let current_pos_result =
+    sqlight.query(
+      "SELECT position FROM playlist_tracks WHERE playlist_id = ? AND track_uri = ?",
+      db,
+      [sqlight.int(playlist_id), sqlight.text(track_uri)],
+      {
+        use pos <- decode.field(0, decode.int)
+        decode.success(pos)
+      },
+    )
+
+  case current_pos_result {
+    Ok([old_position]) -> {
+      // Shift other tracks
+      case old_position < new_position {
+        True -> {
+          // Moving down: shift tracks between old+1..new up by -1
+          let _ =
+            sqlight.query(
+              "UPDATE playlist_tracks SET position = position - 1
+               WHERE playlist_id = ? AND position > ? AND position <= ?",
+              db,
+              [
+                sqlight.int(playlist_id),
+                sqlight.int(old_position),
+                sqlight.int(new_position),
+              ],
+              decode.dynamic,
+            )
+          Nil
+        }
+        False -> {
+          // Moving up: shift tracks between new..old-1 down by +1
+          let _ =
+            sqlight.query(
+              "UPDATE playlist_tracks SET position = position + 1
+               WHERE playlist_id = ? AND position >= ? AND position < ?",
+              db,
+              [
+                sqlight.int(playlist_id),
+                sqlight.int(new_position),
+                sqlight.int(old_position),
+              ],
+              decode.dynamic,
+            )
+          Nil
+        }
+      }
+      // Set the track's new position
+      sqlight.query(
+        "UPDATE playlist_tracks SET position = ? WHERE playlist_id = ? AND track_uri = ?",
+        db,
+        [
+          sqlight.int(new_position),
+          sqlight.int(playlist_id),
+          sqlight.text(track_uri),
+        ],
+        decode.dynamic,
+      )
+      |> result.map(fn(_) { Nil })
+    }
+    _ -> Ok(Nil)
+  }
+}
+
+/// Update track affinity from a playlist action (add or remove).
+pub fn update_track_affinity_playlist(
+  db: sqlight.Connection,
+  user_id: Int,
+  track_uri: String,
+  action: String,
+  now_ms: Int,
+) -> Result(Nil, sqlight.Error) {
+  let add_inc = case action {
+    "add" -> 1
+    _ -> 0
+  }
+
+  let sql =
+    "INSERT INTO user_track_affinity
+     (user_id, track_uri, play_count, total_listen_ms, avg_listen_pct,
+      queue_add_count, queue_move_closer, skip_count, early_skip_count,
+      queue_remove_count, playlist_add_count, affinity_score, last_interaction_ms)
+     VALUES (?1, ?2, 0, 0, 0.0, 0, 0, 0, 0, 0, ?3, 0.0, ?4)
+     ON CONFLICT(user_id, track_uri) DO UPDATE SET
+       playlist_add_count = user_track_affinity.playlist_add_count + ?3,
+       last_interaction_ms = ?4,
+       affinity_score =
+         (user_track_affinity.play_count * 2.0)
+         + (user_track_affinity.avg_listen_pct * 3.0)
+         + (user_track_affinity.queue_add_count * 1.5)
+         + (user_track_affinity.queue_move_closer * 2.0)
+         + ((user_track_affinity.playlist_add_count + ?3) * 1.0)
+         - (user_track_affinity.skip_count * 1.0)
+         - (user_track_affinity.early_skip_count * 2.0)
+         - (user_track_affinity.queue_remove_count * 1.5)"
+
+  sqlight.query(
+    sql,
+    db,
+    [
+      sqlight.int(user_id),
+      sqlight.text(track_uri),
+      sqlight.int(add_inc),
+      sqlight.int(now_ms),
     ],
     decode.dynamic,
   )

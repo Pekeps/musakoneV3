@@ -1,6 +1,7 @@
 import { useStore } from '@nanostores/preact';
-import { GripVertical, Play, RefreshCw, Trash2 } from 'lucide-preact';
+import { GripVertical, MoreVertical, Play, RefreshCw, Shuffle, Trash2 } from 'lucide-preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { confirm } from '../components/ConfirmModal';
 import { TrackItem } from '../components/TrackItem';
 import * as mopidy from '../services/mopidy';
 import { currentTrack } from '../stores/player';
@@ -15,7 +16,9 @@ export function QueueView() {
     const [selectedTlid, setSelectedTlid] = useState<number | null>(null);
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+    const [menuOpen, setMenuOpen] = useState(false);
     const currentTrackRef = useRef<HTMLDivElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
 
     const loadQueue = async () => {
         setLoading(true);
@@ -73,6 +76,19 @@ export function QueueView() {
         };
     }, [selectedTlid]);
 
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        if (!menuOpen) return;
+
+        const handleClickOutside = (e: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+                setMenuOpen(false);
+            }
+        };
+        document.addEventListener('click', handleClickOutside);
+        return () => document.removeEventListener('click', handleClickOutside);
+    }, [menuOpen]);
+
     const handlePlayTrack = async (tlid: number) => {
         try {
             await mopidy.play(tlid);
@@ -96,22 +112,39 @@ export function QueueView() {
         setSelectedTlid(selectedTlid === tlid ? null : tlid);
     };
 
-    const handleClearQueue = async () => {
-        try {
-            await mopidy.clearTracklist();
-            await loadQueue();
-        } catch (err) {
-            console.error('Failed to clear queue:', err);
-        }
+    const handleClearQueue = () => {
+        setMenuOpen(false);
+        confirm({
+            title: 'Clear Queue',
+            message: `Remove all ${queueTracks.length} tracks from the queue?`,
+            confirmLabel: 'Clear',
+            destructive: true,
+            onConfirm: async () => {
+                try {
+                    await mopidy.clearTracklist();
+                    await loadQueue();
+                } catch (err) {
+                    console.error('Failed to clear queue:', err);
+                }
+            },
+        });
     };
 
-    const handleShuffle = async () => {
-        try {
-            await mopidy.shuffleTracklist();
-            await loadQueue();
-        } catch (err) {
-            console.error('Failed to shuffle queue:', err);
-        }
+    const handleShuffle = () => {
+        setMenuOpen(false);
+        confirm({
+            title: 'Shuffle Queue',
+            message: 'Randomize the order of all tracks in the queue?',
+            confirmLabel: 'Shuffle',
+            onConfirm: async () => {
+                try {
+                    await mopidy.shuffleTracklist();
+                    await loadQueue();
+                } catch (err) {
+                    console.error('Failed to shuffle queue:', err);
+                }
+            },
+        });
     };
 
     const handleDragStart = (e: DragEvent, index: number) => {
@@ -207,7 +240,39 @@ export function QueueView() {
     }
 
     return (
-        <div className="flex flex-col h-full overflow-hidden"> 
+        <div className="flex flex-col h-full overflow-hidden">
+            {/* Queue header with actions menu */}
+            <div className="flex items-center justify-between px-4 py-1.5 border-b border-border-primary shrink-0 bg-bg-secondary">
+                <span className="text-fg-secondary text-sm">{queueTracks.length} tracks</span>
+                <div className="relative" ref={menuRef}>
+                    <button
+                        className="flex items-center justify-center w-8 h-8 bg-transparent border-none text-fg-secondary cursor-pointer transition-colors duration-150 hover:text-fg-primary"
+                        onClick={() => setMenuOpen(!menuOpen)}
+                        aria-label="Queue actions"
+                    >
+                        <MoreVertical size={18} />
+                    </button>
+                    {menuOpen && (
+                        <div className="absolute right-0 top-full mt-1 min-w-40 bg-bg-secondary border border-border-primary z-50 shadow-lg">
+                            <button
+                                className="flex items-center gap-2 w-full px-3 py-2.5 bg-transparent border-none text-fg-primary text-sm font-mono text-left cursor-pointer transition-colors duration-150 hover:bg-bg-tertiary"
+                                onClick={handleShuffle}
+                            >
+                                <Shuffle size={15} />
+                                Shuffle
+                            </button>
+                            <button
+                                className="flex items-center gap-2 w-full px-3 py-2.5 bg-transparent border-none text-error text-sm font-mono text-left cursor-pointer transition-colors duration-150 hover:bg-bg-tertiary"
+                                onClick={handleClearQueue}
+                            >
+                                <Trash2 size={15} />
+                                Clear Queue
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+
             <div className="flex-1 overflow-y-auto pb-[var(--mini-player-height)]">
                 {queueTracks.map((item, index) => {
                     const isCurrentTrack = item.tlid === currentTlid || item.track.uri === current?.uri;

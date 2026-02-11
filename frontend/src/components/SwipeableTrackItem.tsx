@@ -1,4 +1,5 @@
-import { Check, Plus } from 'lucide-preact';
+import { Check, ListPlus, Plus } from 'lucide-preact';
+import { openAddToPlaylistModal } from '../stores/playlists';
 import { SwipeableItem } from './SwipeableItem';
 import { TrackItem, DefaultTrackIcon, type TrackItemData } from './TrackItem';
 import type { JSX } from 'preact';
@@ -6,6 +7,8 @@ import type { JSX } from 'preact';
 export interface SwipeableTrackItemProps {
     /** Track data to display */
     track: TrackItemData;
+    /** Track URI for add-to-playlist */
+    trackUri?: string;
     /** Whether the track is already in the queue */
     isQueued: boolean;
     /** Whether interactions are disabled */
@@ -36,6 +39,7 @@ export interface SwipeableTrackItemProps {
  */
 export function SwipeableTrackItem({
     track,
+    trackUri,
     isQueued,
     disabled = false,
     onAdd,
@@ -66,23 +70,38 @@ export function SwipeableTrackItem({
                     showDuration={showDuration}
                     customMeta={customMeta}
                     rightContent={
-                        isQueued ? (
-                            <div className="flex items-center justify-center w-8 h-8 text-success shrink-0" title="Already in queue">
-                                <Check size={18} />
-                            </div>
-                        ) : (
-                            <button
-                                className="flex items-center justify-center w-8 h-8 bg-transparent border border-border-primary text-fg-tertiary cursor-pointer shrink-0 transition-all duration-150 hover:text-accent-primary hover:border-accent-primary active:bg-bg-secondary"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onAdd();
-                                }}
-                                aria-label={`Add ${track.name} to queue`}
-                                title="Add to queue"
-                            >
-                                <Plus size={18} />
-                            </button>
-                        )
+                        <>
+                            {trackUri && (
+                                <button
+                                    className="flex items-center justify-center w-8 h-8 bg-transparent border border-border-primary text-fg-tertiary cursor-pointer shrink-0 transition-all duration-150 hover:text-accent-primary hover:border-accent-primary active:bg-bg-secondary"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        openAddToPlaylistModal(trackUri);
+                                    }}
+                                    aria-label={`Add ${track.name} to playlist`}
+                                    title="Add to playlist"
+                                >
+                                    <ListPlus size={18} />
+                                </button>
+                            )}
+                            {isQueued ? (
+                                <div className="flex items-center justify-center w-8 h-8 text-success shrink-0" title="Already in queue">
+                                    <Check size={18} />
+                                </div>
+                            ) : (
+                                <button
+                                    className="flex items-center justify-center w-8 h-8 bg-transparent border border-border-primary text-fg-tertiary cursor-pointer shrink-0 transition-all duration-150 hover:text-accent-primary hover:border-accent-primary active:bg-bg-secondary"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onAdd();
+                                    }}
+                                    aria-label={`Add ${track.name} to queue`}
+                                    title="Add to queue"
+                                >
+                                    <Plus size={18} />
+                                </button>
+                            )}
+                        </>
                     }
                 />
             </>

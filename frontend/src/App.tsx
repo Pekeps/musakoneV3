@@ -6,6 +6,8 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { AnalyticsView } from './routes/AnalyticsView';
 import { LibraryView } from './routes/LibraryView';
 import { Login } from './routes/Login';
+import { PlaylistDetailView } from './routes/PlaylistDetailView';
+import { PlaylistsView } from './routes/PlaylistsView';
 import { QueueView } from './routes/QueueView';
 import { Register } from './routes/Register';
 import { SearchView } from './routes/SearchView';
@@ -80,6 +82,22 @@ export const App = () => {
                     <ProtectedRoute>
                         <Layout>
                             <SearchView />
+                        </Layout>
+                    </ProtectedRoute>
+                </Route>
+
+                <Route path="/playlists">
+                    <ProtectedRoute>
+                        <Layout>
+                            <PlaylistsView />
+                        </Layout>
+                    </ProtectedRoute>
+                </Route>
+
+                <Route path="/playlists/:id">
+                    <ProtectedRoute>
+                        <Layout>
+                            <PlaylistDetailView />
                         </Layout>
                     </ProtectedRoute>
                 </Route>

@@ -148,6 +148,7 @@ export function LibraryView() {
                             <SwipeableTrackItem
                                 key={item.uri}
                                 track={{ name: item.name, duration: undefined, artists: undefined }}
+                                trackUri={item.uri}
                                 isQueued={queuedUris.has(item.uri)}
                                 disabled={loading}
                                 onAdd={() => handleAddToQueue(item, new Event('click'))}

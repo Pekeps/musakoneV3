@@ -1,5 +1,5 @@
 import { useLocation } from 'wouter';
-import { List, Library, Search, BarChart3 } from 'lucide-preact';
+import { List, Library, Search, ListMusic } from 'lucide-preact';
 
 export function BottomNav() {
     const [location, setLocation] = useLocation();
@@ -8,13 +8,16 @@ export function BottomNav() {
         { path: '/', icon: List, label: 'Queue' },
         { path: '/library', icon: Library, label: 'Library' },
         { path: '/search', icon: Search, label: 'Search' },
+        { path: '/playlists', icon: ListMusic, label: 'Playlists' },
     ];
 
     return (
         <nav className="w-full h-[var(--bottom-nav-height)] bg-bg-secondary border-t border-border-primary flex justify-around items-center bottom-nav-after" style={{ flexShrink: 0 }}>
             {navItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = location === item.path;
+                const isActive = item.path === '/'
+                    ? location === '/'
+                    : location.startsWith(item.path);
 
                 return (
                     <button

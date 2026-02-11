@@ -1,0 +1,1 @@
+ALTER TABLE user_track_affinity ADD COLUMN playlist_add_count INTEGER NOT NULL DEFAULT 0;

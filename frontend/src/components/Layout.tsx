@@ -5,7 +5,9 @@ import { logout } from '../services/auth';
 import * as mopidy from '../services/mopidy';
 import { currentUser, setUser } from '../stores/auth';
 import { connectionStatus } from '../stores/connection';
+import { AddToPlaylistModal } from './AddToPlaylistModal';
 import { BottomNav } from './BottomNav';
+import { ConfirmModal } from './ConfirmModal';
 import { MiniPlayer } from './MiniPlayer';
 
 interface LayoutProps {
@@ -84,6 +86,9 @@ export function Layout({ children }: LayoutProps) {
                     <MiniPlayer />
                 </div>
             )}
+
+            <AddToPlaylistModal />
+            <ConfirmModal />
         </div>
     );
 }
