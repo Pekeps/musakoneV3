@@ -1,18 +1,19 @@
 import { useStore } from '@nanostores/preact';
-import { ChevronLeft, Edit3, Music, Play, Trash2, X } from 'lucide-preact';
+import { ChevronLeft, Edit3, Globe, Music, Play, Trash2, X } from 'lucide-preact';
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { useLocation, useRoute } from 'wouter';
 import { TrackItem } from '../components/TrackItem';
 import { useAddToQueue } from '../hooks/useAddToQueue';
 import * as mopidy from '../services/mopidy';
 import * as playlistService from '../services/playlists';
-import { queue } from '../stores/queue';
+import { currentUser } from '../stores/auth';
 import {
     currentPlaylist,
     currentPlaylistTracks,
     setCurrentPlaylist,
     setCurrentPlaylistTracks,
 } from '../stores/playlists';
+import { queue } from '../stores/queue';
 import type { Track } from '../types';
 
 export function PlaylistDetailView() {
@@ -21,6 +22,7 @@ export function PlaylistDetailView() {
     const playlist = useStore(currentPlaylist);
     const tracks = useStore(currentPlaylistTracks);
     const queueTracks = useStore(queue);
+    const user = useStore(currentUser);
     const { addToQueue } = useAddToQueue();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -30,6 +32,7 @@ export function PlaylistDetailView() {
     const [trackInfo, setTrackInfo] = useState<Map<string, Track>>(new Map());
 
     const playlistId = params?.id ? parseInt(params.id, 10) : null;
+    const isOwner = playlist != null && user != null && playlist.user_id === user.id;
 
     const queuedUris = useMemo(() => {
         return new Set(queueTracks.map((t) => t.track.uri));
@@ -105,7 +108,12 @@ export function PlaylistDetailView() {
     const handleSaveEdit = async () => {
         if (!playlistId || !editName.trim()) return;
         try {
-            await playlistService.updatePlaylist(playlistId, editName.trim(), editDesc.trim() || undefined);
+            await playlistService.updatePlaylist(
+                playlistId,
+                editName.trim(),
+                editDesc.trim() || undefined,
+                playlist?.is_public
+            );
             setEditing(false);
             await loadPlaylist();
         } catch (err) {
@@ -113,7 +121,24 @@ export function PlaylistDetailView() {
         }
     };
 
-    const getTrackDisplay = (trackUri: string): { name: string; artists?: Array<{ name: string }>; duration?: number } => {
+    const handleTogglePublic = async () => {
+        if (!playlistId || !playlist) return;
+        try {
+            await playlistService.updatePlaylist(
+                playlistId,
+                playlist.name,
+                playlist.description || undefined,
+                !playlist.is_public
+            );
+            await loadPlaylist();
+        } catch (err) {
+            console.error('Failed to toggle public:', err);
+        }
+    };
+
+    const getTrackDisplay = (
+        trackUri: string
+    ): { name: string; artists?: Array<{ name: string }>; duration?: number } => {
         const info = trackInfo.get(trackUri);
         if (info) {
             return {
@@ -127,7 +152,11 @@ export function PlaylistDetailView() {
     };
 
     if (loading) {
-        return <div className="flex items-center justify-center min-h-[50vh] text-fg-secondary">Loading...</div>;
+        return (
+            <div className="flex items-center justify-center min-h-[50vh] text-fg-secondary">
+                Loading...
+            </div>
+        );
     }
 
     if (error) {
@@ -145,7 +174,11 @@ export function PlaylistDetailView() {
     }
 
     if (!playlist) {
-        return <div className="flex items-center justify-center min-h-[50vh] text-fg-secondary">Playlist not found</div>;
+        return (
+            <div className="flex items-center justify-center min-h-[50vh] text-fg-secondary">
+                Playlist not found
+            </div>
+        );
     }
 
     return (
@@ -190,18 +223,44 @@ export function PlaylistDetailView() {
                 ) : (
                     <>
                         <div className="flex-1 min-w-0">
-                            <div className="text-fg-primary truncate text-sm font-medium">{playlist.name}</div>
+                            <div className="text-fg-primary truncate text-sm font-medium">
+                                {playlist.name}
+                                {playlist.is_public && (
+                                    <Globe
+                                        size={12}
+                                        className="inline-block ml-1 text-fg-tertiary"
+                                    />
+                                )}
+                            </div>
                             {playlist.description && (
-                                <div className="text-xs text-fg-tertiary truncate">{playlist.description}</div>
+                                <div className="text-xs text-fg-tertiary truncate">
+                                    {playlist.description}
+                                </div>
                             )}
                         </div>
-                        <button
-                            className="flex items-center justify-center w-8 h-8 bg-transparent border border-border-primary text-fg-tertiary cursor-pointer shrink-0 transition-all duration-150 hover:text-accent-primary hover:border-accent-primary"
-                            onClick={handleEdit}
-                            aria-label="Edit playlist"
-                        >
-                            <Edit3 size={14} />
-                        </button>
+                        {isOwner && (
+                            <button
+                                className={`flex items-center justify-center w-8 h-8 bg-transparent border cursor-pointer shrink-0 transition-all duration-150 ${playlist.is_public ? 'border-accent-primary text-accent-primary' : 'border-border-primary text-fg-tertiary hover:text-accent-primary hover:border-accent-primary'}`}
+                                onClick={handleTogglePublic}
+                                aria-label={playlist.is_public ? 'Make private' : 'Make public'}
+                                title={
+                                    playlist.is_public
+                                        ? 'Public — tap to make private'
+                                        : 'Private — tap to make public'
+                                }
+                            >
+                                <Globe size={14} />
+                            </button>
+                        )}
+                        {isOwner && (
+                            <button
+                                className="flex items-center justify-center w-8 h-8 bg-transparent border border-border-primary text-fg-tertiary cursor-pointer shrink-0 transition-all duration-150 hover:text-accent-primary hover:border-accent-primary"
+                                onClick={handleEdit}
+                                aria-label="Edit playlist"
+                            >
+                                <Edit3 size={14} />
+                            </button>
+                        )}
                     </>
                 )}
             </div>
@@ -236,15 +295,21 @@ export function PlaylistDetailView() {
                                 track={display}
                                 icon={<Music size={20} />}
                                 showDuration={!!display.duration}
-                                customMeta={queuedUris.has(pt.track_uri) ? `#${index + 1} · in queue` : undefined}
+                                customMeta={
+                                    queuedUris.has(pt.track_uri)
+                                        ? `#${index + 1} · in queue`
+                                        : undefined
+                                }
                                 rightContent={
-                                    <button
-                                        className="flex items-center justify-center w-8 h-8 bg-transparent border border-border-primary text-fg-tertiary cursor-pointer shrink-0 transition-all duration-150 hover:text-error hover:border-error"
-                                        onClick={() => handleRemoveTrack(pt.track_uri)}
-                                        aria-label="Remove from playlist"
-                                    >
-                                        <Trash2 size={14} />
-                                    </button>
+                                    isOwner ? (
+                                        <button
+                                            className="flex items-center justify-center w-8 h-8 bg-transparent border border-border-primary text-fg-tertiary cursor-pointer shrink-0 transition-all duration-150 hover:text-error hover:border-error"
+                                            onClick={() => handleRemoveTrack(pt.track_uri)}
+                                            aria-label="Remove from playlist"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    ) : undefined
                                 }
                             />
                         );

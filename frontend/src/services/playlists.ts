@@ -1,5 +1,5 @@
-import { getConfigSync } from './config';
 import type { Playlist, PlaylistWithTracks } from '../types';
+import { getConfigSync } from './config';
 
 function getBackendUrl(): string {
     return getConfigSync().backendHttpUrl;
@@ -28,6 +28,13 @@ export async function listPlaylists(): Promise<Playlist[]> {
     return handleResponse(response);
 }
 
+export async function listPublicPlaylists(): Promise<Playlist[]> {
+    const response = await fetch(`${getBackendUrl()}/api/playlists/public`, {
+        headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+}
+
 export async function getPlaylistsContainingTrack(trackUri: string): Promise<number[]> {
     const response = await fetch(
         `${getBackendUrl()}/api/playlists/containing?track_uri=${encodeURIComponent(trackUri)}`,
@@ -36,11 +43,19 @@ export async function getPlaylistsContainingTrack(trackUri: string): Promise<num
     return handleResponse(response);
 }
 
-export async function createPlaylist(name: string, description?: string): Promise<Playlist> {
+export async function createPlaylist(
+    name: string,
+    description?: string,
+    is_public?: boolean
+): Promise<Playlist> {
     const response = await fetch(`${getBackendUrl()}/api/playlists`, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ name, description: description || null }),
+        body: JSON.stringify({
+            name,
+            description: description || null,
+            is_public: is_public || false,
+        }),
     });
     return handleResponse(response);
 }
@@ -52,11 +67,20 @@ export async function getPlaylist(id: number): Promise<PlaylistWithTracks> {
     return handleResponse(response);
 }
 
-export async function updatePlaylist(id: number, name: string, description?: string): Promise<Playlist> {
+export async function updatePlaylist(
+    id: number,
+    name: string,
+    description?: string,
+    is_public?: boolean
+): Promise<Playlist> {
     const response = await fetch(`${getBackendUrl()}/api/playlists/${id}`, {
         method: 'PUT',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ name, description: description || null }),
+        body: JSON.stringify({
+            name,
+            description: description || null,
+            is_public: is_public || false,
+        }),
     });
     return handleResponse(response);
 }
@@ -87,7 +111,11 @@ export async function removeTrackFromPlaylist(playlistId: number, trackUri: stri
     await handleResponse(response);
 }
 
-export async function reorderPlaylistTrack(playlistId: number, trackUri: string, newPosition: number): Promise<void> {
+export async function reorderPlaylistTrack(
+    playlistId: number,
+    trackUri: string,
+    newPosition: number
+): Promise<void> {
     const response = await fetch(`${getBackendUrl()}/api/playlists/${playlistId}/tracks/reorder`, {
         method: 'PUT',
         headers: getAuthHeaders(),
