@@ -54,7 +54,7 @@ export async function createPlaylist(
         body: JSON.stringify({
             name,
             description: description || null,
-            is_public: is_public || false,
+            is_public: is_public ?? false,
         }),
     });
     return handleResponse(response);
@@ -79,7 +79,7 @@ export async function updatePlaylist(
         body: JSON.stringify({
             name,
             description: description || null,
-            is_public: is_public || false,
+            is_public: is_public ?? false,
         }),
     });
     return handleResponse(response);

@@ -787,7 +787,7 @@ pub fn list_playlists(
   }
 }
 
-/// List all public playlists
+/// List all public playlists from all users
 pub fn list_public_playlists(
   state: AppState,
   auth_header: String,

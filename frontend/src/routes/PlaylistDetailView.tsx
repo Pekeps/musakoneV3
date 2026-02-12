@@ -32,7 +32,7 @@ export function PlaylistDetailView() {
     const [trackInfo, setTrackInfo] = useState<Map<string, Track>>(new Map());
 
     const playlistId = params?.id ? parseInt(params.id, 10) : null;
-    const isOwner = playlist != null && user != null && playlist.user_id === user.id;
+    const isOwner = playlist !== null && user !== null && playlist.user_id === user.id;
 
     const queuedUris = useMemo(() => {
         return new Set(queueTracks.map((t) => t.track.uri));
